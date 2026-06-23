@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #f7f8fb;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text: #07152f;
+  --color-muted: #64748b;
+  --color-navy: #0b2e6f;
+  --color-blue: #0057d9;
+  --color-blue-soft: #eaf2ff;
+  --color-green: #16a34a;
+  --color-green-soft: #e7f6ec;
+  --color-orange: #f59e0b;
+  --color-orange-soft: #fef3e0;
+  --color-red: #e53935;
+  --color-red-soft: #fdecec;
+  --color-purple: #7c5bd9;
+  --color-purple-soft: #f1ecfd;
+  --color-pink: #e94b7b;
+  --color-pink-soft: #fde7ef;
+  --font-display:
+    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
+    Segoe UI Symbol, Noto Color Emoji;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
+  --font-serif: Georgia, 'Times New Roman', serif;
+}

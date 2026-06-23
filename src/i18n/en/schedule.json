@@ -1,0 +1,44 @@
+{
+  "schedule": {
+    "title": "Schedule",
+    "subtitle": "View and manage all scheduled moves.",
+    "addMove": "Add move",
+    "today": "Today",
+    "previousWeek": "Previous week",
+    "nextWeek": "Next week",
+    "filters": {
+      "statuses": "All statuses",
+      "crews": "All crews",
+      "locations": "All locations",
+      "more": "Filters"
+    },
+    "stats": {
+      "total": "Total Moves",
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "upcoming": "Upcoming"
+    },
+    "todaySection": "Today • {{date}}",
+    "selectedSection": "Schedule • {{date}}",
+    "upcomingSection": "Upcoming • Next 7 days",
+    "viewAll": "View all ({{count}})",
+    "movers": "{{count}} Movers",
+    "noMoves": "No scheduled moves.",
+    "loading": "Loading schedule…",
+    "loadError": "Schedule could not be loaded.",
+    "retry": "Try again",
+    "jobFallback": "Move {{number}}",
+    "status": {
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "upcoming": "Upcoming"
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "calendar": "Calendar view",
+      "dispatch": "Dispatch board",
+      "crew": "Crew availability",
+      "export": "Export schedule"
+    }
+  }
+}

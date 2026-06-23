@@ -1,0 +1,44 @@
+{
+  "schedule": {
+    "title": "Programación",
+    "subtitle": "Ver y gestionar todos los traslados programados.",
+    "addMove": "Agregar traslado",
+    "today": "Hoy",
+    "previousWeek": "Semana anterior",
+    "nextWeek": "Semana siguiente",
+    "filters": {
+      "statuses": "Todos los estados",
+      "crews": "Todas las cuadrillas",
+      "locations": "Todas las ubicaciones",
+      "more": "Filtros"
+    },
+    "stats": {
+      "total": "Traslados totales",
+      "inProgress": "En curso",
+      "completed": "Completados",
+      "upcoming": "Próximos"
+    },
+    "todaySection": "Hoy • {{date}}",
+    "selectedSection": "Agenda • {{date}}",
+    "upcomingSection": "Próximos • Próximos 7 días",
+    "viewAll": "Ver todos ({{count}})",
+    "movers": "{{count}} Movers",
+    "noMoves": "No hay traslados programados.",
+    "loading": "Cargando programación…",
+    "loadError": "No se pudo cargar la programación.",
+    "retry": "Intentar de nuevo",
+    "jobFallback": "Traslado {{number}}",
+    "status": {
+      "inProgress": "En curso",
+      "completed": "Completado",
+      "upcoming": "Próximo"
+    },
+    "quickActions": {
+      "title": "Acciones rápidas",
+      "calendar": "Vista calendario",
+      "dispatch": "Tablero de despacho",
+      "crew": "Disponibilidad de cuadrilla",
+      "export": "Exportar agenda"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "customers": {
+    "title": "Customers",
+    "count": "{{count}} customers",
+    "searchPlaceholder": "Search customer…",
+    "new": "New customer",
+    "emptyTitle": "No customers",
+    "emptyBody": "Add your first customer",
+    "loading": "Loading customers…",
+    "loadError": "Customers could not be loaded.",
+    "retry": "Try again",
+    "notFound": "Customer not found",
+    "profile": {
+      "phoneUnavailable": "No phone",
+      "emailUnavailable": "No email",
+      "notes": "Notes"
+    },
+    "moves": "Moves",
+    "invoices": "Invoices",
+    "newMove": "New move",
+    "noMoves": "No moves yet",
+    "noInvoices": "No invoices yet",
+    "due": "Due {{date}}",
+    "form": {
+      "title": "New customer",
+      "subtitle": "Add the customer's primary information.",
+      "name": "Name",
+      "phone": "Phone",
+      "email": "Email",
+      "notes": "Notes",
+      "namePlaceholder": "Full name",
+      "phonePlaceholder": "Phone number",
+      "emailPlaceholder": "email@example.com",
+      "notesPlaceholder": "Customer notes",
+      "save": "Save",
+      "saving": "Saving…",
+      "notSignedIn": "You are not signed in",
+      "validationTitle": "Review the form",
+      "nameError": "Name must be between 2 and 100 characters.",
+      "phoneError": "Phone must be between 7 and 30 characters.",
+      "emailError": "Enter a valid email up to 255 characters.",
+      "notesError": "Notes cannot exceed 1000 characters."
+    },
+    "status": {
+      "scheduled": "Upcoming",
+      "confirmed": "Upcoming",
+      "new": "New",
+      "in_progress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "paid": "Paid",
+      "pending": "Pending",
+      "overdue": "Overdue",
+      "draft": "Draft",
+      "sent": "Sent"
+    }
+  }
+}

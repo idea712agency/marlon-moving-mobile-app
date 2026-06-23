@@ -1,0 +1,58 @@
+{
+  "customers": {
+    "title": "Clientes",
+    "count": "{{count}} clientes",
+    "searchPlaceholder": "Buscar cliente…",
+    "new": "Nuevo cliente",
+    "emptyTitle": "Sin clientes",
+    "emptyBody": "Agrega tu primer cliente",
+    "loading": "Cargando clientes…",
+    "loadError": "No se pudieron cargar los clientes.",
+    "retry": "Intentar de nuevo",
+    "notFound": "Cliente no encontrado",
+    "profile": {
+      "phoneUnavailable": "Sin teléfono",
+      "emailUnavailable": "Sin correo",
+      "notes": "Notas"
+    },
+    "moves": "Traslados",
+    "invoices": "Facturas",
+    "newMove": "Nuevo traslado",
+    "noMoves": "Sin traslados aún",
+    "noInvoices": "Sin facturas aún",
+    "due": "Vence {{date}}",
+    "form": {
+      "title": "Nuevo cliente",
+      "subtitle": "Agrega la información principal del cliente.",
+      "name": "Nombre",
+      "phone": "Teléfono",
+      "email": "Correo",
+      "notes": "Notas",
+      "namePlaceholder": "Nombre completo",
+      "phonePlaceholder": "Número de teléfono",
+      "emailPlaceholder": "correo@ejemplo.com",
+      "notesPlaceholder": "Notas sobre el cliente",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "notSignedIn": "No has iniciado sesión",
+      "validationTitle": "Revisa el formulario",
+      "nameError": "El nombre debe tener entre 2 y 100 caracteres.",
+      "phoneError": "El teléfono debe tener entre 7 y 30 caracteres.",
+      "emailError": "Ingresa un correo válido de hasta 255 caracteres.",
+      "notesError": "Las notas no pueden superar 1000 caracteres."
+    },
+    "status": {
+      "scheduled": "Próximo",
+      "confirmed": "Próximo",
+      "new": "Nuevo",
+      "in_progress": "En curso",
+      "completed": "Completado",
+      "cancelled": "Cancelado",
+      "paid": "Pagada",
+      "pending": "Pendiente",
+      "overdue": "Vencida",
+      "draft": "Borrador",
+      "sent": "Enviada"
+    }
+  }
+}
