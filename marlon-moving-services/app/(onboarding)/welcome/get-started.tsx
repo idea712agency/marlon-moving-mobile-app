@@ -176,6 +176,17 @@ export default function GetStartedScreen() {
             </Text>
           </Pressable>
         </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+          <Text style={{ color: onboardingColors.muted, fontSize: compact ? 10 : 12 }}>
+            Admin / Operator?
+          </Text>
+          <Pressable accessibilityRole="link" onPress={() => finish('/auth/sign-in')}>
+            <Text style={{ color: onboardingColors.marlonBlue, fontSize: compact ? 10 : 12, fontWeight: '800' }}>
+              Sign in here
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );

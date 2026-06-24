@@ -11,6 +11,8 @@ export default function Index() {
     return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={colors.primary} /></View>;
   }
 
-  if (!session) return <Redirect href="/auth" />;
+  // If no session, send to welcome onboarding so new users see the intro flow first.
+  // Returning users with a session skip straight to their portal.
+  if (!session) return <Redirect href="/welcome" />;
   return <Redirect href={isAdmin ? '/home' : '/app/home'} />;
 }
