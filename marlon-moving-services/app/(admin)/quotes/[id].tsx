@@ -3,7 +3,7 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
-import { StatusBadge } from '@/app/(admin)/quotes/index';
+import { StatusBadge } from './index';
 import { brand } from '@/constants/operator-brand';
 import { estimateFromQuote, fetchQuote } from '@/lib/estimateRepository';
 

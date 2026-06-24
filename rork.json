@@ -1,0 +1,10 @@
+{
+  "apps": [
+    {
+      "name": "Marlon Moving Services",
+      "path": "marlon-moving-services",
+      "framework": "react-native"
+    }
+  ],
+  "$schema": "https://rork.com/schema/rork.json"
+}

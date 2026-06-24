@@ -3,7 +3,7 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
-import { StatusBadge } from '@/app/leads/index';
+import { StatusBadge } from './index';
 import { brand } from '@/constants/operator-brand';
 import { shortDate } from '@/lib/data';
 import { supabase } from '@/lib/supabase';

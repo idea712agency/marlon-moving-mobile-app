@@ -12,8 +12,8 @@
     }
   },
   "include": [
-    "src/app/**/*.ts",
-    "src/app/**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
     "src/components/ui.tsx",
     "src/constants/**/*.ts",
     "src/data/**/*.ts",

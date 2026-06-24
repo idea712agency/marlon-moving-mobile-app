@@ -27,7 +27,7 @@ import { useBrandAsset } from '@/hooks/useBrandAsset';
 import { useOnboardingNav } from '@/hooks/use-onboarding-nav';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
-const fallbackLogo = require('../../../assets/images/marlon-logo.png');
+const fallbackLogo = require('../../assets/images/marlon-logo.png');
 
 export default function WelcomeScreen() {
   const { t } = useTranslation();
