@@ -1,8 +1,6 @@
-const { getDefaultConfig } = require('expo/metro-config');
-const { withNativeWind } = require('nativewind/metro');
+const { getDefaultConfig } = require("expo/metro-config");
+const { withRorkMetro } = require("@rork-ai/toolkit-sdk/metro");
 
 const config = getDefaultConfig(__dirname);
 
-module.exports = withNativeWind(config, {
-  input: './src/global.css',
-});
+module.exports = withRorkMetro(config);

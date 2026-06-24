@@ -157,7 +157,7 @@ function ProgressSegment({ active, current }: { active: boolean; current: boolea
   }, [active, current, fill]);
 
   const fillStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleX: fill.value }],
+    width: `${fill.value * 100}%`,
   }));
 
   return (
@@ -166,10 +166,8 @@ function ProgressSegment({ active, current }: { active: boolean; current: boolea
         style={[
           {
             height: '100%',
-            width: '100%',
             borderRadius: 999,
             backgroundColor: current ? onboardingColors.marlonRed : onboardingColors.marlonBlue,
-            transformOrigin: 'left center',
           },
           fillStyle,
         ]}

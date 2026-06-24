@@ -12,6 +12,40 @@ export const colors = {
   paleBlue: '#EEF5FF',
 };
 
+export type ThemeColor = 'text' | 'background' | 'textSecondary' | 'backgroundSelected' | 'backgroundElement';
+
+export const Colors: Record<'light' | 'dark', Record<ThemeColor, string>> = {
+  light: {
+    text: '#07152F',
+    background: '#F7F8FB',
+    textSecondary: '#64748B',
+    backgroundSelected: '#EEF5FF',
+    backgroundElement: '#FFFFFF',
+  },
+  dark: {
+    text: '#FFFFFF',
+    background: '#0B1E36',
+    textSecondary: '#9CA3AF',
+    backgroundSelected: '#1E3A5F',
+    backgroundElement: '#1E3A5F',
+  },
+};
+
+export const Spacing = {
+  half: 4,
+  one: 8,
+  two: 12,
+  three: 16,
+  four: 24,
+  five: 32,
+} as const;
+
+export const MaxContentWidth = 600;
+
+export const Fonts = {
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+} as const;
+
 export const layout = {
   screen: 20,
   card: 18,
