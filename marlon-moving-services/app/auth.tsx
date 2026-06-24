@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { BookOpen, Globe, LockKeyhole, Mail } from 'lucide-react-native';
 import { Controller, useForm } from 'react-hook-form';
 import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -198,27 +198,26 @@ export default function AuthScreen() {
             <Text style={{ color: brand.text, fontSize: 15, fontWeight: '900' }}>Continue with Google</Text>
           </Pressable>
 
-          <Link href="/welcome?preview=true" asChild>
-            <Pressable
-              accessibilityLabel="View welcome pages"
-              accessibilityRole="link"
-              disabled={busy}
-              style={{
-                height: 52,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: brand.border,
-                backgroundColor: brand.blueSoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row',
-                gap: 9,
-                opacity: busy ? 0.62 : 1,
-              }}>
-              <BookOpen color={brand.blue} size={18} strokeWidth={2.4} />
-              <Text style={{ color: brand.blue, fontSize: 15, fontWeight: '900' }}>View welcome pages</Text>
-            </Pressable>
-          </Link>
+          <Pressable
+            accessibilityLabel="View welcome pages"
+            accessibilityRole="link"
+            disabled={busy}
+            onPress={() => router.navigate('/welcome?preview=true')}
+            style={{
+              height: 52,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: brand.border,
+              backgroundColor: brand.blueSoft,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 9,
+              opacity: busy ? 0.62 : 1,
+            }}>
+            <BookOpen color={brand.blue} size={18} strokeWidth={2.4} />
+            <Text style={{ color: brand.blue, fontSize: 15, fontWeight: '900' }}>View welcome pages</Text>
+          </Pressable>
         </View>
 
         <Text selectable style={{ color: brand.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' }}>

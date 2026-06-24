@@ -1,5 +1,5 @@
 import Head from 'expo-router/head';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { LockKeyhole, Mail, Truck, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -42,17 +42,29 @@ export default function CustomerSignupScreen() {
         eyebrow="Customer portal"
         title="Create your account"
         subtitle="Save quotes, track your move, and message Marlon Moving Services."
-        footer={<Text style={styles.footerText}>Already have an account? <Link href="/app/login" style={styles.footerLink}>Sign in</Link></Text>}>
+        footer={
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>Already have an account?</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.navigate('/app/login')}>
+              <Text style={styles.footerLink}>Sign in</Text>
+            </Pressable>
+          </View>
+        }>
         <AuthField label="Full name" value={fullName} onChangeText={setFullName} autoComplete="name" icon={<UserRound color={brand.muted} size={18} />} />
         <AuthField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" icon={<Mail color={brand.muted} size={18} />} />
         <AuthField label="Password" value={password} onChangeText={setPassword} autoComplete="new-password" secureTextEntry icon={<LockKeyhole color={brand.muted} size={18} />} />
 
-        <Text selectable style={{ color: brand.muted, fontSize: 12, lineHeight: 18 }}>
-          By creating an account, you agree to the{' '}
-          <Link href="/app/terms-of-service" style={styles.inlineLink}>Terms of Service</Link>
-          {' '}and{' '}
-          <Link href="/app/privacy-policy" style={styles.inlineLink}>Privacy Policy</Link>.
-        </Text>
+        <View style={styles.legalWrap}>
+          <Text selectable style={styles.legalText}>By creating an account, you agree to the</Text>
+          <Pressable accessibilityRole="link" onPress={() => router.navigate('/app/terms-of-service')}>
+            <Text style={styles.inlineLink}>Terms of Service</Text>
+          </Pressable>
+          <Text selectable style={styles.legalText}>and</Text>
+          <Pressable accessibilityRole="link" onPress={() => router.navigate('/app/privacy-policy')}>
+            <Text style={styles.inlineLink}>Privacy Policy</Text>
+          </Pressable>
+          <Text selectable style={styles.legalText}>.</Text>
+        </View>
 
         {message ? <ErrorBox message={message} /> : null}
         <PrimaryAuthButton label="Create account" busy={busy} onPress={() => void submit()} />
@@ -109,7 +121,10 @@ const styles = {
   primaryButton: { height: 52, borderRadius: 14, backgroundColor: brand.blue, alignItems: 'center' as const, justifyContent: 'center' as const },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' as const },
   errorBox: { borderRadius: 14, backgroundColor: brand.redSoft, padding: 12 },
+  footerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 5 },
   footerText: { color: brand.muted, textAlign: 'center' as const, fontSize: 14, fontWeight: '700' as const },
-  footerLink: { color: brand.blue, fontWeight: '900' as const },
-  inlineLink: { color: brand.blue, fontWeight: '900' as const },
+  footerLink: { color: brand.blue, fontSize: 14, fontWeight: '900' as const },
+  legalWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, alignItems: 'center' as const, gap: 4 },
+  legalText: { color: brand.muted, fontSize: 12, lineHeight: 18 },
+  inlineLink: { color: brand.blue, fontSize: 12, lineHeight: 18, fontWeight: '900' as const },
 };

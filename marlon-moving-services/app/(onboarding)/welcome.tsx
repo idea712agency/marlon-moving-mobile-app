@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import {
   Building2,
   CalendarDays,
@@ -178,17 +178,16 @@ export default function WelcomeScreen() {
           </LinearGradient>
         </Pressable>
 
-        <Link href="/app/login" asChild>
-          <Pressable
-            accessibilityLabel={t('onboarding.welcome.alreadyAccount')}
-            accessibilityRole="link"
-            style={{ minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-            <Text style={{ color: '#0B3975', fontSize: 14, fontWeight: '900' }}>
-              {t('onboarding.welcome.alreadyAccount')}
-            </Text>
-            <ChevronRight color="#7393B8" size={17} strokeWidth={2.6} />
-          </Pressable>
-        </Link>
+        <Pressable
+          accessibilityLabel={t('onboarding.welcome.alreadyAccount')}
+          accessibilityRole="link"
+          onPress={() => router.navigate('/app/login')}
+          style={{ minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+          <Text style={{ color: '#0B3975', fontSize: 14, fontWeight: '900' }}>
+            {t('onboarding.welcome.alreadyAccount')}
+          </Text>
+          <ChevronRight color="#7393B8" size={17} strokeWidth={2.6} />
+        </Pressable>
       </Animated.View>
     </View>
   );

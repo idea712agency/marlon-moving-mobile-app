@@ -1,5 +1,5 @@
 import Head from 'expo-router/head';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { LockKeyhole, Mail, ShieldCheck, Truck } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -72,11 +72,14 @@ export default function CustomerLoginScreen() {
             {message ? <ErrorBox message={message} /> : null}
             <PrimaryAuthButton label="Sign in" busy={busy} onPress={() => void submit()} />
 
-            <Link href="/app/signup" asChild>
-              <Pressable accessibilityLabel="Create an account" accessibilityRole="link" disabled={busy} style={[styles.createButton, { opacity: busy ? 0.62 : 1 }]}>
+            <Pressable
+              accessibilityLabel="Create an account"
+              accessibilityRole="link"
+              disabled={busy}
+              onPress={() => router.navigate('/app/signup')}
+              style={[styles.createButton, { opacity: busy ? 0.62 : 1 }]}>
                 <Text style={{ color: brand.blue, fontSize: 16, fontWeight: '900' }}>Create an account</Text>
-              </Pressable>
-            </Link>
+            </Pressable>
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
@@ -84,15 +87,18 @@ export default function CustomerLoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            <Link href="/auth" asChild>
-              <Pressable accessibilityLabel="Admin or staff sign in" accessibilityRole="link" disabled={busy} style={[styles.adminButton, { opacity: busy ? 0.62 : 1 }]}>
+            <Pressable
+              accessibilityLabel="Admin or staff sign in"
+              accessibilityRole="link"
+              disabled={busy}
+              onPress={() => router.navigate('/auth')}
+              style={[styles.adminButton, { opacity: busy ? 0.62 : 1 }]}>
                 <ShieldCheck color={brand.navy} size={19} strokeWidth={2.4} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: brand.navy, fontSize: 14, fontWeight: '900' }}>Admin or staff sign in</Text>
                   <Text style={{ color: brand.muted, fontSize: 11 }}>Open the operator portal</Text>
                 </View>
-              </Pressable>
-            </Link>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
