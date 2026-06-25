@@ -1,10 +1,10 @@
 import Pdf from 'react-native-pdf';
-import { WebView } from 'react-native-webview';
 import { FileText } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { Modal, Pressable, Text, View } from 'react-native';
 
 import { CustomerEmpty } from '@/components/customer/customer-shell';
+import { HtmlViewer } from '@/components/documents/html-viewer';
 import { brand } from '@/constants/operator-brand';
 
 export function DocumentViewer({
@@ -36,7 +36,7 @@ export function DocumentViewer({
   if (isHtmlSnapshot) {
     return (
       <View style={styles.previewFrame}>
-        <WebView source={{ uri: url }} javaScriptEnabled={false} originWhitelist={['*']} style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
+        <HtmlViewer uri={url} />
       </View>
     );
   }
@@ -73,7 +73,7 @@ export function HtmlSnapshotModal({
           <Text selectable numberOfLines={1} style={{ color: brand.text, fontSize: 18, fontWeight: '900' }}>{title}</Text>
           {url ? (
             <View style={styles.previewFrame}>
-              <WebView source={{ uri: url }} javaScriptEnabled={false} originWhitelist={['*']} style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
+              <HtmlViewer uri={url} />
             </View>
           ) : (
             <CustomerEmpty title="Snapshot unavailable" body="This document does not have an HTML snapshot link." />

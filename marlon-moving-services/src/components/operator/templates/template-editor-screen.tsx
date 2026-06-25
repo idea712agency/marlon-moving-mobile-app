@@ -3,8 +3,8 @@ import { router } from 'expo-router';
 import { Eye, Save, Trash2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, Switch, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from 'react-native';
-import { WebView } from 'react-native-webview';
 
+import { HtmlViewer } from '@/components/documents/html-viewer';
 import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
 import { brand } from '@/constants/operator-brand';
 import {
@@ -66,6 +66,7 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
   const [previewHtml, setPreviewHtml] = useState('');
   const [missingTokens, setMissingTokens] = useState<string[]>([]);
   const [localError, setLocalError] = useState('');
+  const [previewJobId, setPreviewJobId] = useState('');
 
   useEffect(() => {
     if (!template.data?.template) return;
@@ -130,9 +131,18 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
 
   const runPreview = async () => {
     try {
+      if (!templateId) {
+        setLocalError('Save the template before previewing it with job data.');
+        return;
+      }
+      if (!previewJobId.trim()) {
+        setLocalError('Enter a job ID to preview this template with real move data.');
+        return;
+      }
       const result = await preview.mutateAsync({
-        template_id: isNew ? undefined : templateId,
+        template_id: templateId,
         body_html: form.body_html,
+        job_id: previewJobId.trim(),
       });
       setMissingTokens(result.missing_tokens ?? []);
       setPreviewHtml(result.html);
@@ -237,6 +247,23 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
         </View>
       </OperatorCard>
 
+      <OperatorCard>
+        <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>Preview context</Text>
+        <Text style={{ color: brand.muted, fontSize: 12, lineHeight: 17 }}>
+          Enter a job ID to render this template with real move data. The preview does not save or generate a document.
+        </Text>
+        <Field
+          label="Preview job ID"
+          value={previewJobId}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={(value) => {
+            setLocalError('');
+            setPreviewJobId(value.trim());
+          }}
+        />
+      </OperatorCard>
+
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <ActionButton label="Preview" icon={<Eye color={brand.blue} size={17} />} secondary disabled={preview.isPending} onPress={() => void runPreview()} />
         <ActionButton label={upsert.isPending ? 'Saving...' : 'Save'} icon={<Save color="#FFFFFF" size={17} />} disabled={saveDisabled} onPress={() => void save()} />
@@ -301,7 +328,7 @@ function PreviewModal({ html, missingTokens, onClose }: { html: string; missingT
             </View>
           ) : null}
           <View style={styles.previewFrame}>
-            <WebView source={{ html }} javaScriptEnabled={false} originWhitelist={['*']} style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
+            <HtmlViewer html={html} />
           </View>
           <ActionButton label="Close preview" icon={<Eye color={brand.blue} size={17} />} secondary onPress={onClose} />
         </View>

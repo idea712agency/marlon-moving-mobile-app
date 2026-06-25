@@ -19,10 +19,10 @@ import {
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, Text, TextInput, View } from 'react-native';
-import { WebView } from 'react-native-webview';
 
-import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
 import { DocumentViewer } from '@/components/documents/document-viewer';
+import { HtmlViewer } from '@/components/documents/html-viewer';
+import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
 import { StatusPill } from '@/components/operator/StatusPill';
 import { brand } from '@/constants/operator-brand';
 import {
@@ -590,7 +590,7 @@ function HtmlPreviewSheet({
           {banner ? <View style={styles.previewBanner}><Text style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>{banner}</Text></View> : null}
           {html ? (
             <View style={styles.webViewFrame}>
-              <WebView source={{ html }} javaScriptEnabled={false} originWhitelist={['*']} style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
+              <HtmlViewer html={html} />
             </View>
           ) : (
             <DocumentViewer url={uri ?? null} isPdf={isPdf} isHtmlSnapshot={isHtmlSnapshot} mimeType={mimeType} />
