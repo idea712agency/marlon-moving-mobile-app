@@ -49,6 +49,8 @@ export default function RootLayout() {
             <Stack.Screen name="invoices/index" options={{ title: 'Invoices' }} />
             <Stack.Screen name="leads/index" options={{ headerShown: false }} />
             <Stack.Screen name="leads/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="messages/index" options={{ headerShown: false }} />
+            <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="quote/new" options={{ title: 'Free Quote' }} />
             <Stack.Screen name="inventory" options={{ title: 'Inventory' }} />
             <Stack.Screen name="payment" options={{ title: 'Payment' }} />

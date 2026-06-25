@@ -41,7 +41,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="schedule" options={{ title: 'Schedule' }} />
       <Tabs.Screen name="more" options={{ title: 'More' }} />
       <Tabs.Screen name="my-move" options={{ href: null }} />
-      <Tabs.Screen name="messages" options={{ href: null }} />
       <Tabs.Screen name="account" options={{ href: null }} />
     </Tabs>
   );
