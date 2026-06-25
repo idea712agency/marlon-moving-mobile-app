@@ -1,9 +1,7 @@
-import { useLocalSearchParams } from 'expo-router';
-
-import { PlaceholderScreen } from '@/components/operator/app-shell';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 export default function AssignCrewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-
-  return <PlaceholderScreen title="Assign Crew" subtitle={`Assign a crew to move ${id ?? ''}.`} />;
+  const jobId = Array.isArray(id) ? id[0] : id;
+  return <Redirect href={jobId ? `/moves/${jobId}` : '/moves'} />;
 }

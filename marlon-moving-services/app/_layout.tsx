@@ -32,6 +32,7 @@ export default function RootLayout() {
             <Stack.Screen name="app/home" options={{ headerShown: false }} />
             <Stack.Screen name="app/quote" options={{ headerShown: false }} />
             <Stack.Screen name="app/quote/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="app/estimate" options={{ headerShown: false }} />
             <Stack.Screen name="app/messages" options={{ headerShown: false }} />
             <Stack.Screen name="app/documents" options={{ headerShown: false }} />
             <Stack.Screen name="app/account" options={{ headerShown: false }} />

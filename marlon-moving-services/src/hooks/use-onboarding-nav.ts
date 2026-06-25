@@ -44,7 +44,7 @@ export function useOnboardingNav() {
       if (!isPreview) await completeOnboarding();
       router.replace('/app/login');
     },
-    finish: async (destination: '/app/login' | '/app/signup' | '/auth/sign-in' | '/auth/sign-up' | '/quote/new') => {
+    finish: async (destination: '/app/login' | '/app/signup' | '/app/estimate' | '/auth/sign-in' | '/auth/sign-up' | '/quote/new') => {
       if (!isPreview) await completeOnboarding();
       await mediumImpact();
       router.replace(destination);

@@ -24,7 +24,7 @@ export default function CustomerQuoteScreen() {
         <Text selectable style={{ color: brand.muted, fontSize: 14, lineHeight: 21 }}>
           Share your addresses, inventory, photos, preferred date, and contact details. Our team will review it and follow up.
         </Text>
-        <Link href="/quote/new" asChild>
+        <Link href="/app/estimate" asChild>
           <Pressable style={styles.primaryButton}><Truck color="#FFFFFF" size={18} /><Text style={styles.primaryText}>Start estimate request</Text></Pressable>
         </Link>
       </CustomerCard>

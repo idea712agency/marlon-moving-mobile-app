@@ -150,7 +150,7 @@ export default function GetStartedScreen() {
         <Pressable
           accessibilityLabel={t('onboarding.getStarted.freeQuote')}
           accessibilityRole="button"
-          onPress={() => finish('/quote/new')}
+          onPress={() => finish('/app/estimate')}
           style={{
             minHeight: compact ? 48 : 54,
             borderRadius: 16,

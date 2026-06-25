@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from '@/components/operator/app-shell';
+import { Redirect } from 'expo-router';
 
 export default function DispatchIndexScreen() {
-  return (
-    <PlaceholderScreen
-      title="Dispatch Crew"
-      subtitle="Unassigned, assigned, and dispatched move queues will be wired in the Dispatch PR."
-    />
-  );
+  return <Redirect href="/moves" />;
 }

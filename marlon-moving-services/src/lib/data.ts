@@ -10,6 +10,35 @@ export type Notification = Database['public']['Tables']['customer_notifications'
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Conversation = Database['public']['Tables']['chat_conversations']['Row'];
 export type Message = Database['public']['Tables']['chat_messages']['Row'];
+export type PortalStatusStage =
+  | 'quote_submitted'
+  | 'estimate_ready'
+  | 'booked'
+  | 'preparing'
+  | 'move_day'
+  | 'payment_pending_review'
+  | 'invoice_due'
+  | 'complete';
+
+export type PortalStatusTimelineItem = {
+  key: string;
+  label: string;
+  status: 'complete' | 'active' | 'pending';
+  caption?: string;
+};
+
+export type PortalStatus = {
+  stage: PortalStatusStage;
+  label: string;
+  description: string;
+  next_action_label?: string;
+  next_action_href?: string;
+  current_lead_id?: string | null;
+  quote_request_id?: string | null;
+  job_id?: string | null;
+  invoice_id?: string | null;
+  timeline: PortalStatusTimelineItem[];
+};
 
 export type DashboardData = {
   job: Job | null;
@@ -18,6 +47,52 @@ export type DashboardData = {
   crew: CrewLocation | null;
   documents: Document[];
   unread_notifications: number;
+  current_lead: { id: string } | null;
+  portal_status?: PortalStatus | null;
+};
+
+export type ManualPaymentMethod = 'zelle' | 'bank_transfer' | 'check' | 'cash';
+export type ManualPaymentStatus = 'submitted' | 'reviewed' | 'approved' | 'rejected';
+
+export type PaymentMethod = {
+  method: ManualPaymentMethod;
+  label: string;
+  description?: string | null;
+  instructions?: string | null;
+  requires_reference?: boolean | null;
+};
+
+export type ManualPaymentSubmission = {
+  id: string;
+  invoice_id: string;
+  job_id?: string | null;
+  customer_user_id: string;
+  method: ManualPaymentMethod;
+  amount: number;
+  payment_date: string;
+  reference_number?: string | null;
+  notes?: string | null;
+  proof_file_path?: string | null;
+  status: ManualPaymentStatus;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+};
+
+export type PaymentDetail = {
+  invoice: Invoice | null;
+  job?: Job | null;
+  methods: PaymentMethod[];
+  submissions: ManualPaymentSubmission[];
+};
+
+export type DocumentDetail = {
+  document: Document | null;
+  signed: boolean;
+  signer_name?: string | null;
+  signed_at?: string | null;
 };
 
 export const money = (value?: number | null) =>

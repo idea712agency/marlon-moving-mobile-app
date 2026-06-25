@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router, type Href } from 'expo-router';
 import {
   CalendarDays,
   Check,
@@ -18,7 +18,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { CustomerEmpty, CustomerShell } from '@/components/customer/customer-shell';
 import { brand } from '@/constants/operator-brand';
 import { useCustomerDashboard } from '@/hooks/use-customer-dashboard';
-import type { ChecklistItem, CrewLocation, Invoice, Job } from '@/lib/data';
+import type { ChecklistItem, CrewLocation, Invoice, Job, PortalStatus, PortalStatusTimelineItem } from '@/lib/data';
 import { money, shortDate, shortTime } from '@/lib/data';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -29,6 +29,16 @@ const QUICK_ACTIONS = [
   { label: 'Inventory', href: '/inventory' as const, Icon: Package },
   { label: 'Payment', href: '/payment' as const, Icon: CreditCard },
 ];
+const PORTAL_STEPS = [
+  { key: 'quote_submitted', label: 'Quote submitted' },
+  { key: 'estimate_ready', label: 'Estimate ready' },
+  { key: 'booked', label: 'Booked' },
+  { key: 'preparing', label: 'Preparing' },
+  { key: 'move_day', label: 'Move day' },
+  { key: 'invoice_due', label: 'Invoice due' },
+  { key: 'payment_pending_review', label: 'Payment review' },
+  { key: 'complete', label: 'Complete' },
+];
 
 export default function CustomerHomeScreen() {
   const { user } = useAuth();
@@ -36,6 +46,7 @@ export default function CustomerHomeScreen() {
   const [showDetails, setShowDetails] = useState(false);
   const data = dashboard.data;
   const job = data?.job;
+  const portalStatus = data?.portal_status ?? null;
   const firstName = useMemo(() => {
     const fullName = String(user?.user_metadata?.full_name ?? '').trim();
     return fullName.split(/\s+/)[0] || 'there';
@@ -50,7 +61,8 @@ export default function CustomerHomeScreen() {
       onRefresh={() => void dashboard.refetch()}>
       {dashboard.isLoading ? <ActivityIndicator color={brand.blue} /> : null}
       {dashboard.error ? <CustomerEmpty title="Dashboard unavailable" body={dashboard.error instanceof Error ? dashboard.error.message : 'Unable to load your portal.'} /> : null}
-      {!dashboard.isLoading && !dashboard.error && !job ? <NoLinkedMove /> : null}
+      {!dashboard.isLoading && !dashboard.error && !portalStatus && !job ? <NoLinkedMove /> : null}
+      {portalStatus ? <PortalStatusCard status={portalStatus} /> : null}
       {job ? (
         <>
           <MoveHero job={job} expanded={showDetails} onToggle={() => setShowDetails((value) => !value)} />
@@ -63,6 +75,67 @@ export default function CustomerHomeScreen() {
         </>
       ) : null}
     </CustomerShell>
+  );
+}
+
+function PortalStatusCard({ status }: { status: PortalStatus }) {
+  const timelineByKey = new Map(status.timeline.map((item) => [item.key, item]));
+  const ctaReady = Boolean(status.next_action_label && status.next_action_href);
+  const activeIndex = PORTAL_STEPS.findIndex((step) => (timelineByKey.get(step.key)?.status ?? 'pending') === 'active');
+  const lastCompleteIndex = PORTAL_STEPS.reduce((last, step, index) => (timelineByKey.get(step.key)?.status === 'complete' ? index : last), -1);
+  const progressIndex = activeIndex >= 0 ? activeIndex : lastCompleteIndex;
+
+  return (
+    <View style={[styles.card, { gap: 16 }]}>
+      <View style={{ gap: 6 }}>
+        <Text selectable style={{ color: brand.text, fontSize: 22, lineHeight: 28, fontWeight: '900' }}>{status.label}</Text>
+        <Text selectable style={{ color: brand.muted, fontSize: 14, lineHeight: 20 }}>{status.description}</Text>
+      </View>
+      <PortalTimeline timelineByKey={timelineByKey} progressIndex={progressIndex} />
+      {ctaReady ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(status.next_action_href as Href)}
+          style={styles.primaryButton}>
+          <Text style={styles.primaryText}>{status.next_action_label}</Text>
+          <ChevronRight color="#FFFFFF" size={18} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function PortalTimeline({ timelineByKey, progressIndex }: { timelineByKey: Map<string, PortalStatusTimelineItem>; progressIndex: number }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+      {PORTAL_STEPS.map((step, index) => {
+        const item = timelineByKey.get(step.key);
+        const status = item?.status ?? 'pending';
+        const active = status === 'active';
+        const complete = status === 'complete';
+        const connected = index <= progressIndex;
+        const nextConnected = index < progressIndex;
+        return (
+          <View key={step.key} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+            <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
+              {index > 0 ? <View style={{ flex: 1, height: 3, backgroundColor: connected ? brand.blue : brand.border }} /> : <View style={{ flex: 1 }} />}
+              <View
+                style={[
+                  styles.portalStepCircle,
+                  active ? styles.portalStepActive : complete ? styles.portalStepComplete : styles.portalStepPending,
+                ]}>
+                {complete ? <Check color={brand.blue} size={15} strokeWidth={3} /> : active ? <Circle color="#FFFFFF" fill="#FFFFFF" size={10} /> : null}
+              </View>
+              {index < PORTAL_STEPS.length - 1 ? <View style={{ flex: 1, height: 3, backgroundColor: nextConnected ? brand.blue : brand.border }} /> : <View style={{ flex: 1 }} />}
+            </View>
+            <Text numberOfLines={2} style={{ color: active ? brand.text : complete ? brand.blue : brand.muted, fontSize: 8, lineHeight: 10, fontWeight: active ? '900' : complete ? '800' : '700', textAlign: 'center' }}>
+              {item?.label ?? step.label}
+            </Text>
+            {item?.caption ? <Text numberOfLines={2} style={{ color: brand.muted, fontSize: 7, lineHeight: 9, fontWeight: '700', textAlign: 'center' }}>{item.caption}</Text> : null}
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -300,6 +373,10 @@ const styles = {
   factDetail: { color: brand.muted, fontSize: 10, lineHeight: 14 },
   detailsGrid: { borderRadius: 14, backgroundColor: brand.bg, padding: 12, flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 12 },
   stepCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center' as const, justifyContent: 'center' as const },
+  portalStepCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center' as const, justifyContent: 'center' as const },
+  portalStepActive: { backgroundColor: brand.blue, borderWidth: 0 },
+  portalStepComplete: { backgroundColor: brand.blueSoft, borderWidth: 1, borderColor: brand.blue },
+  portalStepPending: { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: brand.border },
   heroButton: { minHeight: 48, borderRadius: 13, backgroundColor: brand.navy, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8 },
   quickAction: { flexGrow: 1, flexBasis: 68, minWidth: 62, maxWidth: 90, height: 94, borderRadius: 16, borderCurve: 'continuous' as const, borderWidth: 1, borderColor: brand.border, backgroundColor: '#FFFFFF', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, padding: 7, boxShadow: '0 2px 7px rgba(15,23,42,0.05)' },
   quickIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: brand.blueSoft, alignItems: 'center' as const, justifyContent: 'center' as const },

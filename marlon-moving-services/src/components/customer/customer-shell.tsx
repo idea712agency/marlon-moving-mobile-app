@@ -97,7 +97,7 @@ export function CustomerFooter({ bottom }: { bottom: number }) {
   return (
     <View style={{ position: 'absolute', left: 16, right: 16, bottom: Math.max(bottom, 8), maxWidth: 448, alignSelf: 'center', height: 62, borderRadius: 31, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: brand.border, flexDirection: 'row', boxShadow: '0 8px 24px rgba(7,21,47,0.15)' }}>
       {tabs.map(({ label, href, Icon }) => {
-        const active = pathname === href || (href === '/app/quote' && pathname === '/quote/new');
+        const active = pathname === href || (href === '/app/quote' && (pathname === '/app/estimate' || pathname === '/quote/new'));
         return (
           <Link key={href} href={href as Href} asChild>
             <Pressable accessibilityLabel={label} accessibilityRole="link" accessibilityState={active ? { selected: true } : {}} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}>

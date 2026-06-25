@@ -38,12 +38,17 @@ export default function CustomerQuoteDetailScreen() {
   }
 
   const lead = request.data;
+  const status = customerStatus(lead.status);
   return (
     <CustomerShell title="Estimate request" subtitle={`Confirmation ${lead.id.slice(0, 8).toUpperCase()}`} refreshing={request.isRefetching} onRefresh={() => void request.refetch()}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={styles.statusPill}><Text style={styles.statusText}>{lead.status || 'Submitted'}</Text></View>
+        <View style={[styles.statusPill, { backgroundColor: status.bg }]}><Text style={[styles.statusText, { color: status.fg }]}>{status.label}</Text></View>
         <Text selectable style={{ color: brand.muted, fontSize: 12 }}>{shortDate(lead.created_at.slice(0, 10))}</Text>
       </View>
+      <CustomerCard>
+        <Text selectable style={{ color: brand.text, fontSize: 18, fontWeight: '900' }}>{status.heading}</Text>
+        <Text selectable style={{ color: brand.muted, fontSize: 14, lineHeight: 21 }}>{status.description}</Text>
+      </CustomerCard>
       {lead.revision_of ? <Text selectable style={{ color: brand.blue, fontSize: 12, fontWeight: '800' }}>Revision of {lead.revision_of.slice(0, 8).toUpperCase()}</Text> : null}
 
       <CustomerCard>
@@ -80,7 +85,7 @@ export default function CustomerQuoteDetailScreen() {
         </Section>
       </CustomerCard>
 
-      <Link href={`/quote/new?request=${lead.id}`} asChild>
+      <Link href={`/app/estimate?request=${lead.id}`} asChild>
         <Pressable style={styles.primaryButton}><Text style={styles.primaryText}>Edit and submit revision</Text></Pressable>
       </Link>
       <Text selectable style={{ color: brand.muted, fontSize: 11, lineHeight: 16, textAlign: 'center' }}>
@@ -107,6 +112,43 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 const titleCase = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+function customerStatus(value?: string | null) {
+  const status = (value || 'submitted').toLowerCase();
+  if (['quoted', 'sent', 'estimate_ready'].includes(status)) {
+    return {
+      label: 'Estimate ready',
+      heading: 'Your estimate is ready',
+      description: 'Our team has reviewed your request. Open the latest update from your portal or contact us with questions.',
+      bg: brand.blueSoft,
+      fg: brand.blue,
+    };
+  }
+  if (['converted', 'won', 'booked'].includes(status)) {
+    return {
+      label: 'Booked',
+      heading: 'Your move is booked',
+      description: 'This request has been converted into a scheduled move. Your move dashboard will show the next steps.',
+      bg: brand.greenSoft,
+      fg: brand.green,
+    };
+  }
+  if (['lost', 'cancelled', 'declined'].includes(status)) {
+    return {
+      label: 'Closed',
+      heading: 'This request is closed',
+      description: 'This request is no longer active. You can submit a new estimate request anytime.',
+      bg: brand.redSoft,
+      fg: brand.red,
+    };
+  }
+  return {
+    label: 'Submitted',
+    heading: 'We received your request',
+    description: 'Our team is reviewing your move details, inventory, and photos. You can edit and submit a revision if anything changes.',
+    bg: brand.greenSoft,
+    fg: brand.green,
+  };
+}
 const styles = {
   statusPill: { alignSelf: 'flex-start' as const, borderRadius: 999, backgroundColor: brand.greenSoft, paddingHorizontal: 11, paddingVertical: 6 },
   statusText: { color: brand.green, fontSize: 10, fontWeight: '900' as const, textTransform: 'uppercase' as const },

@@ -1,10 +1,5 @@
-import { PlaceholderScreen } from '@/components/operator/app-shell';
+import { Redirect } from 'expo-router';
 
 export default function NewJobScreen() {
-  return (
-    <PlaceholderScreen
-      title="New Move"
-      subtitle="The create-move form will validate with Zod and call mobile-create-job in the Moves PR."
-    />
-  );
+  return <Redirect href="/estimate/new?manual=true" />;
 }

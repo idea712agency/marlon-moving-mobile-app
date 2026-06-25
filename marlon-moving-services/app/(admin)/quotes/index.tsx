@@ -85,8 +85,9 @@ export default function QuotesScreen() {
                   </Text>
                   <Text style={{ color: brand.muted, fontSize: 12 }}>{new Date(quote.updated_at).toLocaleDateString()}</Text>
                 </View>
-                <StatusBadge status={quote.status || 'draft'} />
+                <StatusBadge status={quoteStage(quote)} />
               </View>
+              <Text selectable style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>{quoteNextAction(quote)}</Text>
               <Text numberOfLines={1} style={{ color: brand.text, fontSize: 14 }}>{quote.origin}</Text>
               <Text numberOfLines={1} style={{ color: brand.muted, fontSize: 14 }}>→ {quote.destination}</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -106,21 +107,71 @@ export default function QuotesScreen() {
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  const label = quoteStatusLabel(status);
   const tone =
-    status === 'won' || status === 'accepted'
+    status === 'booked' || status === 'won' || status === 'accepted'
       ? { bg: brand.greenSoft, fg: brand.green }
       : status === 'lost' || status === 'declined'
         ? { bg: brand.redSoft, fg: brand.red }
         : status === 'sent'
           ? { bg: brand.blueSoft, fg: brand.blue }
+          : status === 'new'
+            ? { bg: brand.orangeSoft, fg: brand.orange }
           : { bg: brand.purpleSoft, fg: brand.purple };
   return (
     <View style={{ borderRadius: 999, backgroundColor: tone.bg, paddingHorizontal: 10, paddingVertical: 6 }}>
-      <Text style={{ color: tone.fg, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>{status}</Text>
+      <Text style={{ color: tone.fg, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' }}>{label}</Text>
     </View>
   );
 }
 
 function ErrorCard({ message }: { message: string }) {
   return <OperatorCard><Text selectable style={{ color: brand.red, lineHeight: 20 }}>{message}</Text></OperatorCard>;
+}
+
+const hasEstimate = (quote: AdminQuote) => Boolean(
+  quote.conversation_data &&
+    typeof quote.conversation_data === 'object' &&
+    !Array.isArray(quote.conversation_data) &&
+    quote.conversation_data.estimate,
+);
+
+const convertedJobId = (quote: AdminQuote) => {
+  const data = quote.conversation_data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return '';
+  const estimate = data.estimate;
+  if (!estimate || typeof estimate !== 'object' || Array.isArray(estimate)) return '';
+  const id = (estimate as Record<string, unknown>).converted_job_id;
+  return typeof id === 'string' ? id : '';
+};
+
+function quoteStage(quote: AdminQuote) {
+  if (convertedJobId(quote) || quote.status === 'won') return 'booked';
+  if (quote.status === 'lost' || quote.status === 'declined') return 'lost';
+  if (quote.status === 'sent') return 'sent';
+  if (hasEstimate(quote)) return 'estimate_ready';
+  return 'new';
+}
+
+function quoteNextAction(quote: AdminQuote) {
+  const stage = quoteStage(quote);
+  if (stage === 'booked') return 'Move booked';
+  if (stage === 'sent') return 'Awaiting decision';
+  if (stage === 'estimate_ready') return 'Ready to print, send, or book';
+  if (stage === 'lost') return 'Closed';
+  return 'Build estimate next';
+}
+
+function quoteStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    new: 'New request',
+    estimate_ready: 'Estimate ready',
+    sent: 'Sent',
+    booked: 'Booked',
+    won: 'Booked',
+    accepted: 'Booked',
+    lost: 'Lost',
+    declined: 'Lost',
+  };
+  return labels[status] ?? status.replace(/_/g, ' ');
 }

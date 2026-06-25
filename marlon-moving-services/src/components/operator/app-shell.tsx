@@ -2,7 +2,6 @@ import { Link, router, type Href, usePathname } from 'expo-router';
 import {
   BookOpen,
   CalendarDays,
-  ClipboardList,
   FileStack,
   FileText,
   LayoutGrid,
@@ -123,8 +122,6 @@ function OperatorMenu({
     { label: 'Quotes', href: '/quotes' as const, Icon: FileText },
     { label: 'Leads', href: '/leads' as const, Icon: UserRoundSearch },
     { label: 'Documents', href: '/documents' as const, Icon: FileStack },
-    { label: 'Dispatch', href: '/dispatch' as const, Icon: ClipboardList },
-    { label: 'Invoices', href: '/invoices' as const, Icon: FileText },
   ];
 
   return (

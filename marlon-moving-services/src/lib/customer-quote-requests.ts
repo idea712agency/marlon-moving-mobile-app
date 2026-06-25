@@ -23,19 +23,27 @@ const LEAD_FIELDS =
   'id, created_at, status, move_type, move_date, origin_address, destination_address, estimate_payload, revision_of';
 
 export async function listCustomerQuoteRequests() {
-  const { data, error } = await supabase
-    .from('leads')
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error('Sign in to view your quote requests.');
+
+  const { data, error } = await (supabase.from('leads') as any)
     .select(LEAD_FIELDS)
+    .eq('customer_user_id', userData.user.id)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as CustomerLead[];
 }
 
 export async function getCustomerQuoteRequest(id: string) {
-  const { data, error } = await supabase
-    .from('leads')
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) throw new Error('Sign in to view this quote request.');
+
+  const { data, error } = await (supabase.from('leads') as any)
     .select(LEAD_FIELDS)
     .eq('id', id)
+    .eq('customer_user_id', userData.user.id)
     .single();
   if (error) throw error;
   return data as unknown as CustomerLead;

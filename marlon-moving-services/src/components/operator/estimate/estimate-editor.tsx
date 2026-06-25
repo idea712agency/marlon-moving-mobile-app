@@ -21,11 +21,11 @@ import {
   type PackingKitId,
   type TravelZoneId,
 } from '@/lib/adminEstimate';
-import { convertEstimateToJob, saveEstimate, type AdminQuote, type QuoteStatus } from '@/lib/estimateRepository';
+import { bookEstimate, convertedJobIdFromQuote, saveEstimate, validateBookableQuote, type AdminQuote, type QuoteStatus } from '@/lib/estimateRepository';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 
-const STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined', 'won', 'lost'];
+const STATUSES: QuoteStatus[] = ['new', 'draft', 'sent', 'accepted', 'declined', 'won', 'lost'];
 const DEPOSIT_STATUSES: DepositStatus[] = ['required', 'paid', 'applied'];
 
 export function EstimateEditor({
@@ -44,10 +44,12 @@ export function EstimateEditor({
   const [status, setStatus] = useState<QuoteStatus>((initialQuote.status as QuoteStatus) || 'draft');
   const [loadOpen, setLoadOpen] = useState(false);
   const [hoursText, setHoursText] = useState(initialEstimate.hours.join(', '));
+  const [bookingError, setBookingError] = useState('');
   const range = priceRange(estimate);
   const packing = resolvePackingPrice(estimate);
   const showPackingColumn = hasPackingCharge(estimate);
   const showTravelColumn = (estimate.travelFee ?? 0) > 0;
+  const bookedJobId = estimate.converted_job_id ?? convertedJobIdFromQuote(quote);
 
   const recentQuotes = useQuery({
     queryKey: ['admin-estimate-load-list'],
@@ -83,18 +85,30 @@ export function EstimateEditor({
   });
 
   const convert = useMutation({
-    mutationFn: () => convertEstimateToJob(quote, estimate),
-    onSuccess: ({ jobId, alreadyConverted }) => {
-      setEstimate((current) => ({ ...current, converted_job_id: jobId }));
+    mutationFn: () => bookEstimate(quote),
+    onSuccess: (result) => {
+      setBookingError('');
+      setEstimate((current) => ({ ...current, converted_job_id: result.job_id }));
       void queryClient.invalidateQueries({ queryKey: ['admin-quotes'] });
-      if (alreadyConverted) router.push(`/moves/${jobId}`);
-      else Alert.alert('Job created', 'The estimate was converted successfully.', [
-        { text: 'Stay here' },
-        { text: 'View job', onPress: () => router.push(`/moves/${jobId}`) },
-      ]);
+      void queryClient.invalidateQueries({ queryKey: ['admin-quote', quote.id] });
+      void queryClient.invalidateQueries({ queryKey: ['operator-moves'] });
+      void queryClient.invalidateQueries({ queryKey: ['operator-schedule'] });
+      void queryClient.invalidateQueries({ queryKey: ['operator-job', result.job_id] });
+      Alert.alert(result.already_converted ? 'Already booked — opening move' : 'Move booked');
+      router.push(`/moves/${result.job_id}`);
     },
-    onError: (error) => Alert.alert(error instanceof Error && error.name === 'PartialConversionError' ? 'Recovery required' : 'Conversion failed', messageOf(error)),
+    onError: (error) => setBookingError(messageOf(error)),
   });
+
+  const requestBooking = () => {
+    const validation = validateBookableQuote(quote);
+    if (validation) {
+      setBookingError(validation);
+      return;
+    }
+    setBookingError('');
+    confirmBook(() => convert.mutate());
+  };
 
   const setContact = (key: keyof EstimatePayload['contact'], value: string) =>
     setEstimate((current) => ({ ...current, contact: { ...current.contact, [key]: value } }));
@@ -117,7 +131,7 @@ export function EstimateEditor({
     <View style={styles.actionBar}>
       <FooterAction label="Save" icon={<Save color="#FFFFFF" size={16} />} primary disabled={save.isPending} onPress={() => save.mutate(status)} />
       <FooterAction label="PDF" icon={<FileText color={quote.id ? brand.blue : brand.muted} size={16} />} disabled={!quote.id} onPress={() => quote.id && router.push(`/estimate/${quote.id}/print`)} />
-      <FooterAction label={estimate.converted_job_id ? 'Job' : 'Convert'} icon={estimate.converted_job_id ? <Check color={brand.green} size={16} /> : <Truck color={quote.id ? brand.orange : brand.muted} size={16} />} disabled={!quote.id || convert.isPending} onPress={() => estimate.converted_job_id ? router.push(`/moves/${estimate.converted_job_id}`) : confirmConvert(() => convert.mutate())} />
+      <FooterAction label={bookedJobId ? 'View Job' : 'Approve / Book'} icon={bookedJobId ? <Check color={brand.green} size={16} /> : <Truck color={quote.id ? brand.orange : brand.muted} size={16} />} disabled={!quote.id || convert.isPending} onPress={() => bookedJobId ? router.push(`/moves/${bookedJobId}`) : requestBooking()} />
       <FooterAction label="Send" icon={<Send color={brand.muted} size={16} />} disabled onPress={() => {}} />
     </View>
   );
@@ -140,6 +154,11 @@ export function EstimateEditor({
         <Text selectable style={{ color: brand.text, fontWeight: '900' }}>Estimate #{estimate.estimateNumber}</Text>
         <StatusPill status={status} />
       </View>
+      {bookingError ? (
+        <OperatorCard>
+          <Text selectable style={{ color: brand.red, fontSize: 13, lineHeight: 18, fontWeight: '800' }}>{bookingError}</Text>
+        </OperatorCard>
+      ) : null}
 
       <EstimateSection number="1" title="Customer">
         <Field label="Name" value={estimate.contact.name} onChangeText={(value) => setContact('name', value)} />
@@ -319,7 +338,7 @@ function StatusPill({ status }: { status: string }) { return <View style={{ padd
 function LoadSheet({ visible, loading, quotes, onClose }: { visible: boolean; loading: boolean; quotes: any[]; onClose: () => void }) {
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,21,47,0.28)' }}><View style={{ width: '100%', maxWidth: 448, maxHeight: '72%', alignSelf: 'center', backgroundColor: brand.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, gap: 10 }}><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={{ color: brand.text, fontSize: 20, fontWeight: '900' }}>Load quote</Text><Pressable onPress={onClose}><X color={brand.muted} size={22} /></Pressable></View>{loading ? <Text style={{ color: brand.muted }}>Loading…</Text> : quotes.map((item) => <Pressable key={item.id} onPress={() => { onClose(); router.replace(`/estimate/new?quote=${item.id}`); }} style={{ borderRadius: 14, borderWidth: 1, borderColor: brand.border, padding: 12, gap: 3 }}><Text style={{ color: brand.text, fontWeight: '900' }}>{item.contacts?.name || `Quote ${item.id.slice(0, 8)}`}</Text><Text numberOfLines={1} style={{ color: brand.muted, fontSize: 11 }}>{item.origin || 'TBD'} → {item.destination || 'TBD'}</Text></Pressable>)}</View></View></Modal>;
 }
-const confirmConvert = (action: () => void) => Alert.alert('Convert to job?', 'This creates one scheduled job and links it to this estimate.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Convert', onPress: action }]);
+const confirmBook = (action: () => void) => Alert.alert('Book this move?', 'This creates one scheduled job and links it to this estimate.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Book Move', onPress: action }]);
 const moneyShort = (value: number) => `$${Math.round(value).toLocaleString('en-US')}`;
 const titleCase = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong.';
