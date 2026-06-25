@@ -13,9 +13,28 @@ const isBrowser = typeof window !== 'undefined' && typeof window.localStorage !=
 const isServer = typeof window === 'undefined';
 
 const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+  getItem: async (key: string) => {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      // iOS can reject SecureStore reads during background auth refresh ticks.
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {
+      // Preserve app stability if native secure storage is temporarily unavailable.
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {
+      // Preserve app stability if native secure storage is temporarily unavailable.
+    }
+  },
 };
 
 const WebStorageAdapter = {
