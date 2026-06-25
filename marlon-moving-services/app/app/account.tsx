@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'reac
 import { CustomerCard, CustomerEmpty, CustomerShell } from '@/components/customer/customer-shell';
 import { brand } from '@/constants/operator-brand';
 import { errorMessage, type Profile } from '@/lib/data';
-import { supabase } from '@/lib/supabase';
+import { invokeSupabaseFunction } from '@/lib/supabase-functions';
 import { useAuth } from '@/providers/auth-provider';
 
 export default function CustomerAccountScreen() {
@@ -19,36 +19,28 @@ export default function CustomerAccountScreen() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      if (!user) return;
-      const { data, error: queryError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-      if (!active) return;
-      if (queryError) setError(errorMessage(queryError));
-      setProfile(data);
-      setFullName(data?.full_name ?? user.user_metadata?.full_name ?? '');
-      setPhone(data?.phone ?? '');
-      setLoading(false);
-    };
-    void load();
-    return () => { active = false; };
+    setFullName(String(user?.user_metadata?.full_name ?? ''));
+    setPhone(String(user?.user_metadata?.phone ?? ''));
+    setLoading(false);
   }, [user]);
 
   const save = async () => {
     if (!user) return;
     setSaving(true);
     setError('');
-    const { data, error: updateError } = await supabase
-      .from('profiles')
-      .upsert({ id: user.id, email: user.email ?? null, full_name: fullName.trim() || null, phone: phone.trim() || null })
-      .select('*')
-      .single();
-    if (updateError) setError(errorMessage(updateError));
-    else {
-      setProfile(data);
+    try {
+      const data = await invokeSupabaseFunction<{ profile?: Profile; full_name?: string | null; phone?: string | null }>('mobile-update-profile', {
+        body: { full_name: fullName.trim() || undefined, phone: phone.trim() || undefined },
+      });
+      if (data.profile) setProfile(data.profile);
+      setFullName(data.profile?.full_name ?? data.full_name ?? fullName.trim());
+      setPhone(data.profile?.phone ?? data.phone ?? phone.trim());
       Alert.alert('Saved', 'Your account details were updated.');
+    } catch (updateError) {
+      setError(errorMessage(updateError));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const logout = async () => {
