@@ -37,7 +37,7 @@ export default function QuotesScreen() {
     getNextPageParam: (lastPage) => lastPage.pagination?.next_cursor ?? undefined,
   });
   const quotes = useMemo(() => query.data?.pages.flatMap((page) => page.quotes) ?? [], [query.data]);
-  const counts = dashboard.data?.quote_pipeline ?? query.data?.pages[0]?.quote_pipeline ?? {};
+  const counts = dashboard.data?.quote_pipeline ?? query.data?.pages[0]?.quote_pipeline ?? null;
 
   const selectReadiness = (next: QuoteReadiness | 'all') => {
     if (next === 'all') router.setParams({ readiness: undefined });
@@ -71,7 +71,7 @@ export default function QuotesScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {readinessFilters.map((filter) => {
           const selected = filter.key === 'all' ? !selectedReadiness : selectedReadiness === filter.key;
-          const count = filter.key === 'all' ? sumPipeline(counts) : counts[filter.key] ?? null;
+          const count = counts ? (filter.key === 'all' ? sumPipeline(counts) : counts[filter.key] ?? null) : null;
           return (
             <Pressable
               key={filter.key}

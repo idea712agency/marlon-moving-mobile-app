@@ -69,7 +69,7 @@ export default function QuoteDetailScreen() {
 
   return (
     <OperatorScreen refreshing={query.isRefetching} onRefresh={() => void query.refetch()}>
-      <OperatorPageHeader title={quote.customer_name || 'Quote request'} subtitle={quote.quote_number ?? `Quote ${quote.id.slice(0, 8)}`} />
+      <OperatorPageHeader title={customerName(detail) || 'Quote request'} subtitle={quote.quote_number ?? `Quote ${quote.id.slice(0, 8)}`} />
 
       <OperatorCard>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -83,10 +83,10 @@ export default function QuoteDetailScreen() {
 
       <OperatorCard>
         <SectionHeader title="Customer" Icon={MessageSquareText} />
-        <Detail label="Name" value={quote.customer_name || 'Customer pending'} />
-        <Detail label="Phone" value={quote.customer_phone || 'Not provided'} />
-        <Detail label="Email" value={quote.customer_email || 'Not provided'} />
-        <Detail label="Lead source" value={quote.lead_source || 'Not provided'} />
+        <Detail label="Name" value={customerName(detail) || 'Customer pending'} />
+        <Detail label="Phone" value={customerPhone(detail) || 'Not provided'} />
+        <Detail label="Email" value={customerEmail(detail) || 'Not provided'} />
+        <Detail label="Lead source" value={leadSource(detail) || 'Not provided'} />
       </OperatorCard>
 
       <OperatorCard>
@@ -256,7 +256,7 @@ function LostReasonSheet({
 
 function quoteDetailToAdminQuote(detail: AdminQuoteDetail): AdminQuote {
   const quote = detail.quote;
-  const contactName = quote.customer_name ?? '';
+  const contactName = customerName(detail);
   return {
     id: quote.id,
     contact_id: quote.contact_id ?? null,
@@ -270,11 +270,53 @@ function quoteDetailToAdminQuote(detail: AdminQuoteDetail): AdminQuote {
     estimated_price_max: quote.estimate_total ?? null,
     contacts: {
       id: quote.contact_id ?? '',
-      name: contactName,
-      phone: quote.customer_phone ?? null,
-      email: quote.customer_email ?? null,
+      name: contactName ?? '',
+      phone: customerPhone(detail),
+      email: customerEmail(detail),
     },
   } as AdminQuote;
+}
+
+function customerName(detail: AdminQuoteDetail) {
+  return firstString(
+    detail.quote.customer_name,
+    recordString(detail.quote, 'contact_name'),
+    recordString(detail.quote, 'name'),
+    nestedString(detail.quote, 'contact', 'name'),
+    nestedString(detail.quote, 'contacts', 'name'),
+    recordString(detail.lead, 'customer_name'),
+    recordString(detail.lead, 'name'),
+    nestedString(detail.lead, 'contact', 'name'),
+    nestedString(detail.lead, 'contacts', 'name'),
+  );
+}
+
+function customerPhone(detail: AdminQuoteDetail) {
+  return firstString(
+    detail.quote.customer_phone,
+    recordString(detail.quote, 'phone'),
+    nestedString(detail.quote, 'contact', 'phone'),
+    nestedString(detail.quote, 'contacts', 'phone'),
+    recordString(detail.lead, 'phone'),
+    nestedString(detail.lead, 'contact', 'phone'),
+    nestedString(detail.lead, 'contacts', 'phone'),
+  );
+}
+
+function customerEmail(detail: AdminQuoteDetail) {
+  return firstString(
+    detail.quote.customer_email,
+    recordString(detail.quote, 'email'),
+    nestedString(detail.quote, 'contact', 'email'),
+    nestedString(detail.quote, 'contacts', 'email'),
+    recordString(detail.lead, 'email'),
+    nestedString(detail.lead, 'contact', 'email'),
+    nestedString(detail.lead, 'contacts', 'email'),
+  );
+}
+
+function leadSource(detail: AdminQuoteDetail) {
+  return firstString(detail.quote.lead_source, recordString(detail.lead, 'lead_source'), recordString(detail.lead, 'source'));
 }
 
 function estimateTotalLabel(detail: AdminQuoteDetail) {
@@ -318,6 +360,23 @@ function formatUnknownValue(value: unknown) {
   return JSON.stringify(value);
 }
 
+function firstString(...values: unknown[]) {
+  const value = values.find((item) => typeof item === 'string' && item.trim());
+  return typeof value === 'string' ? value : null;
+}
+
+function recordString(value: unknown, key: string) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const item = (value as Record<string, unknown>)[key];
+  return typeof item === 'string' ? item : null;
+}
+
+function nestedString(value: unknown, parent: string, key: string) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const child = (value as Record<string, unknown>)[parent];
+  return recordString(child, key);
+}
+
 function humanize(value: string) {
   return value.replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -334,4 +393,3 @@ function relativeTime(value: string) {
   const days = Math.round(hours / 24);
   return `${days}d ago`;
 }
-
