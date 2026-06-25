@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Check, FileText, LockKeyhole } from 'lucide-react-native';
+import { Check, Download, FileText, Info, LockKeyhole, PenLine } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { DocumentViewer, HtmlSnapshotModal } from '@/components/documents/docume
 import { brand } from '@/constants/operator-brand';
 import {
   customerDocumentDetailKey,
+  customerDocumentHelp,
   customerDocumentListKey,
   customerDocumentTitle,
   customerDocumentVersion,
@@ -90,10 +91,14 @@ export default function CustomerDocumentDetailScreen() {
               <View style={styles.iconBubble}><FileText color={brand.blue} size={26} /></View>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text selectable style={styles.title}>{customerDocumentTitle(document)}</Text>
-                <Text style={{ color: signed ? brand.green : brand.blue, fontSize: 12, fontWeight: '900' }}>
+                <Text selectable style={{ color: signed ? brand.green : signatureRequired ? brand.orange : brand.blue, fontSize: 12, fontWeight: '900' }}>
                   {signed ? `Signed${version ? ` v${version}` : ''}` : signatureRequired ? 'Signature required' : 'Ready to view'}
                 </Text>
               </View>
+            </View>
+            <View style={styles.helperBox}>
+              <Info color={brand.blue} size={17} />
+              <Text selectable style={styles.body}>{customerDocumentHelp(document)}</Text>
             </View>
           </CustomerCard>
 
@@ -125,6 +130,10 @@ export default function CustomerDocumentDetailScreen() {
                 <Text style={styles.sectionTitle}>Sign document</Text>
               </View>
               <Text selectable style={styles.body}>Type your full legal name to sign this document.</Text>
+              <View style={styles.pendingBox}>
+                <PenLine color={brand.orange} size={17} />
+                <Text selectable style={{ color: brand.text, fontSize: 12, lineHeight: 17, flex: 1 }}>Your typed name is recorded as your signature and locks this document.</Text>
+              </View>
               {localError ? <Text selectable style={{ color: brand.red, fontSize: 12, lineHeight: 17, fontWeight: '800' }}>{localError}</Text> : null}
               <TextInput
                 value={typedName}
@@ -177,6 +186,10 @@ function DocumentPreview({
   return (
     <View style={{ gap: 10 }}>
       <DocumentViewer url={url} isPdf={isPdf} isHtmlSnapshot={isHtmlSnapshot} mimeType={mimeType} onOpen={onOpen} />
+      <Pressable disabled={!url} onPress={onOpen} style={[styles.secondaryButton, { opacity: url ? 1 : 0.55 }]}>
+        <Download color={brand.blue} size={17} />
+        <Text style={styles.secondaryText}>Open or download PDF</Text>
+      </Pressable>
       {htmlPreviewUrl ? (
         <Pressable onPress={onOpenHtml} style={styles.secondaryButton}>
           <FileText color={brand.blue} size={17} />
@@ -192,6 +205,8 @@ const styles = {
   title: { color: brand.text, fontSize: 19, lineHeight: 24, fontWeight: '900' as const },
   sectionTitle: { color: brand.text, fontSize: 18, fontWeight: '900' as const },
   body: { color: brand.muted, fontSize: 13, lineHeight: 19 },
+  helperBox: { borderRadius: 13, borderWidth: 1, borderColor: brand.blue, backgroundColor: brand.blueSoft, padding: 11, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8 },
+  pendingBox: { borderRadius: 13, borderWidth: 1, borderColor: brand.orange, backgroundColor: brand.orangeSoft, padding: 11, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8 },
   input: { minHeight: 52, borderRadius: 13, borderWidth: 1, borderColor: brand.border, backgroundColor: '#FFFFFF', paddingHorizontal: 13, color: brand.text, fontSize: 14 },
   primaryButton: { minHeight: 52, borderRadius: 14, backgroundColor: brand.blue, alignItems: 'center' as const, justifyContent: 'center' as const },
   primaryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' as const },

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const optionalNumber = z.number().nullable().optional();
+
 export const adminDashboardSchema = z.object({
   counts: z.object({
     totalMoves: z.number(),
@@ -37,6 +39,36 @@ export const adminDashboardSchema = z.object({
       created_at: z.string(),
     }),
   ),
+  today: z
+    .object({
+      scheduled_moves: optionalNumber,
+      in_progress: optionalNumber,
+      completed: optionalNumber,
+      revenue_due: optionalNumber,
+    })
+    .nullable()
+    .optional(),
+  attention: z
+    .object({
+      unsigned_documents: optionalNumber,
+      pending_payments: optionalNumber,
+      new_quotes: optionalNumber,
+      unread_messages: optionalNumber,
+      moves_missing_dispatch: optionalNumber,
+    })
+    .nullable()
+    .optional(),
+  quote_pipeline: z
+    .object({
+      new: optionalNumber,
+      estimate_ready: optionalNumber,
+      sent: optionalNumber,
+      booked: optionalNumber,
+      lost: optionalNumber,
+    })
+    .nullable()
+    .optional(),
+  generated_at: z.string().nullable().optional(),
 });
 
 export type AdminDashboard = z.infer<typeof adminDashboardSchema>;

@@ -1,6 +1,7 @@
 import { Link, type Href } from 'expo-router';
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   Calendar,
   CheckCircle2,
@@ -9,13 +10,12 @@ import {
   FileText,
   MapPin,
   MessageSquareText,
-  Plus,
   RefreshCw,
+  Settings2,
   Truck,
-  Users,
 } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, Text, View, useWindowDimensions } from 'react-native';
-import Svg, { Circle, Path, Polygon, Polyline } from 'react-native-svg';
+import Svg, { Circle, Polygon, Polyline } from 'react-native-svg';
 
 import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
 import { brand } from '@/constants/operator-brand';
@@ -24,11 +24,12 @@ import { money, shortDate, shortTime } from '@/lib/data';
 import type { AdminDashboard } from '@/lib/schemas/admin-dashboard';
 
 const quickActions = [
+  { label: 'New Estimate', href: '/estimate/new?manual=true', Icon: CircleDollarSign },
   { label: 'New Move', href: '/jobs/new', Icon: Truck },
-  { label: 'Add Customer', href: '/customers/new', Icon: Users },
+  { label: 'Quotes', href: '/quotes', Icon: MessageSquareText },
   { label: 'Schedule', href: '/schedule', Icon: Calendar },
-  { label: 'Dispatch Crew', href: '/dispatch', Icon: Truck },
-  { label: 'Invoices', href: '/invoices', Icon: FileText },
+  { label: 'Documents', href: '/documents', Icon: FileText },
+  { label: 'Templates', href: '/templates', Icon: Settings2 },
 ] as const;
 
 export default function DashboardScreen() {
@@ -38,53 +39,192 @@ export default function DashboardScreen() {
 
   return (
     <OperatorScreen refreshing={dashboard.isRefetching} onRefresh={() => void dashboard.refetch()}>
-      <OperatorPageHeader title="Welcome back!" subtitle="Here's what's happening with your moving business." />
-      <FreeEstimateCard />
+      <OperatorPageHeader title="Operations" subtitle="Today’s work, exceptions, and next actions." />
 
       {dashboard.isLoading ? <LoadingDashboard /> : null}
       {dashboard.error ? <DashboardError message={dashboard.error instanceof Error ? dashboard.error.message : 'Dashboard failed to load.'} onRetry={() => void dashboard.refetch()} /> : null}
 
       {data ? (
         <>
+          <Text selectable style={{ color: brand.muted, fontSize: 12, fontWeight: '800' }}>
+            {data.generated_at ? `Updated ${relativeTime(data.generated_at)}` : 'Live dashboard'}
+          </Text>
+          <OperationsCommand data={data} />
+          <NeedsAttention data={data} />
+          <QuotePipeline pipeline={data.quote_pipeline} />
+          <QuickActions />
           <StatsGrid counts={data.counts} />
+          <UpcomingMoves moves={data.upcomingMoves} />
           <MovesOverview movesByDay={data.movesByDay} width={width} />
           <RecentActivity activity={data.activity} />
-          <QuickActions />
           <MoveStatus statusDonut={data.statusDonut} />
           <RevenueOverview revenueThisMonth={data.revenueThisMonth} revenueByDay={data.revenueByDay} width={width} />
-          <UpcomingMoves moves={data.upcomingMoves} />
         </>
       ) : null}
     </OperatorScreen>
   );
 }
 
-function FreeEstimateCard() {
+function OperationsCommand({ data }: { data: AdminDashboard }) {
+  const today = localDateKey(new Date());
+  const todayMoves = data.upcomingMoves.filter((move) => move.scheduled_date === today);
+  const todaySummary = data.today;
+  const scheduledToday = todaySummary?.scheduled_moves ?? todayMoves.length;
+  const inProgressToday = todaySummary?.in_progress ?? data.counts.inProgress;
+  const completedToday = todaySummary?.completed ?? 0;
+  const revenueDue = todaySummary?.revenue_due ?? data.revenueThisMonth;
+  const nextMove = [...data.upcomingMoves]
+    .filter((move) => move.scheduled_date)
+    .sort((a, b) => moveDateTime(a).getTime() - moveDateTime(b).getTime())[0] ?? null;
+  const nextMoveHref = nextMove ? (`/moves/${nextMove.id}` as Href) : '/schedule';
+
   return (
-    <Link href="/estimate" asChild>
-      <Pressable
-        accessibilityLabel="Free Estimate"
-        accessibilityRole="button"
-        style={{
-          minHeight: 104,
-          borderRadius: 22,
-          borderCurve: 'continuous',
-          backgroundColor: brand.navy,
-          padding: 18,
-          justifyContent: 'space-between',
-          overflow: 'hidden',
-          boxShadow: '0 14px 30px rgba(11,46,111,0.22)',
-        }}>
-        <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,87,217,0.42)', transform: [{ translateX: 120 }, { rotate: '-18deg' }] }} />
-        <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
-          <Plus color="#FFFFFF" size={22} strokeWidth={2.6} />
+    <OperatorCard>
+      <View style={{ gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={{ color: brand.text, fontSize: 20, fontWeight: '900', letterSpacing: -0.25 }}>Today’s board</Text>
+            <Text selectable style={{ color: brand.muted, fontSize: 13, lineHeight: 19, fontWeight: '700' }}>
+              {scheduledToday ? `${scheduledToday} move${scheduledToday === 1 ? '' : 's'} scheduled today.` : 'No moves scheduled for today.'}
+            </Text>
+          </View>
+          <Link href="/schedule" asChild>
+            <Pressable accessibilityLabel="Open schedule" accessibilityRole="link" style={{ height: 38, paddingHorizontal: 12, borderRadius: 12, backgroundColor: brand.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>Schedule</Text>
+            </Pressable>
+          </Link>
         </View>
-        <View style={{ gap: 3 }}>
-          <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: -0.35 }}>Free Estimate</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '600' }}>Preview or start a customer request.</Text>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+          <OpsMetric label="Today" value={scheduledToday} sub="scheduled" Icon={Calendar} color={brand.blue} bg={brand.blueSoft} />
+          <OpsMetric label="In Progress" value={inProgressToday} sub="active moves" Icon={Truck} color={brand.purple} bg={brand.purpleSoft} />
+          <OpsMetric label="Completed" value={completedToday} sub="today" Icon={CheckCircle2} color={brand.green} bg={brand.greenSoft} />
+          <OpsMetric label="Revenue Due" value={money(revenueDue)} sub="today" Icon={CircleDollarSign} color={brand.orange} bg={brand.orangeSoft} compact />
         </View>
-      </Pressable>
-    </Link>
+
+        <Link href={nextMoveHref} asChild>
+          <Pressable accessibilityLabel="Open next move" accessibilityRole="button" style={{ borderRadius: 16, borderWidth: 1, borderColor: brand.border, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FAFBFF' }}>
+            <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: nextMove ? brand.blueSoft : brand.orangeSoft, alignItems: 'center', justifyContent: 'center' }}>
+              {nextMove ? <MapPin color={brand.blue} size={20} strokeWidth={2.5} /> : <Calendar color={brand.orange} size={20} strokeWidth={2.5} />}
+            </View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ color: brand.muted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }}>{nextMove ? 'Next move' : 'Calendar clear'}</Text>
+              <Text selectable numberOfLines={1} style={{ color: brand.text, fontSize: 15, fontWeight: '900' }}>{nextMove?.contact?.name ?? 'Review schedule'}</Text>
+              <Text selectable numberOfLines={1} style={{ color: brand.muted, fontSize: 12, fontWeight: '700' }}>
+                {nextMove ? `${shortDate(nextMove.scheduled_date)} · ${shortTime(nextMove.scheduled_start_time)}` : 'Open the schedule to plan the next job.'}
+              </Text>
+            </View>
+            <ArrowRight color={brand.muted} size={18} strokeWidth={2.4} />
+          </Pressable>
+        </Link>
+      </View>
+    </OperatorCard>
+  );
+}
+
+function OpsMetric({
+  label,
+  value,
+  sub,
+  Icon,
+  color,
+  bg,
+  compact,
+}: {
+  label: string;
+  value: number | string;
+  sub: string;
+  Icon: typeof Calendar;
+  color: string;
+  bg: string;
+  compact?: boolean;
+}) {
+  return (
+    <View style={{ flexGrow: 1, width: '47%', minWidth: 132, borderRadius: 15, borderWidth: 1, borderColor: brand.border, backgroundColor: brand.surface, padding: 12, gap: 9 }}>
+      <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon color={color} size={18} strokeWidth={2.5} />
+      </View>
+      <View style={{ gap: 2 }}>
+        <Text selectable numberOfLines={1} adjustsFontSizeToFit={compact} style={{ color: brand.text, fontSize: compact ? 21 : 24, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{value}</Text>
+        <Text style={{ color: brand.text, fontSize: 12, fontWeight: '900' }}>{label}</Text>
+        <Text style={{ color: brand.muted, fontSize: 11, fontWeight: '800' }}>{sub}</Text>
+      </View>
+    </View>
+  );
+}
+
+function NeedsAttention({ data }: { data: AdminDashboard }) {
+  const items = attentionItems(data);
+
+  return (
+    <OperatorCard>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <CardHeader title="Needs Attention" />
+        <Text style={{ color: items.length ? brand.orange : brand.green, fontSize: 12, fontWeight: '900' }}>{items.length ? `${items.length} open` : 'Clear'}</Text>
+      </View>
+      {items.length ? (
+        items.map((item) => (
+          <Link key={item.key} href={item.href} asChild>
+            <Pressable accessibilityLabel={item.title} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, borderColor: item.border, backgroundColor: item.bg, padding: 12 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: brand.surface, alignItems: 'center', justifyContent: 'center' }}>
+                <item.Icon color={item.color} size={19} strokeWidth={2.5} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text selectable style={{ color: brand.text, fontSize: 14, fontWeight: '900' }}>{item.title}</Text>
+                <Text selectable numberOfLines={2} style={{ color: brand.muted, fontSize: 12, lineHeight: 17, fontWeight: '700' }}>{item.detail}</Text>
+              </View>
+              <View style={{ minWidth: 32, height: 28, borderRadius: 999, backgroundColor: brand.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
+                <Text style={{ color: item.color, fontSize: 12, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{item.count}</Text>
+              </View>
+            </Pressable>
+          </Link>
+        ))
+      ) : (
+        <View style={{ borderRadius: 15, backgroundColor: brand.greenSoft, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <CheckCircle2 color={brand.green} size={20} strokeWidth={2.5} />
+          <Text selectable style={{ flex: 1, color: brand.text, fontSize: 13, lineHeight: 18, fontWeight: '800' }}>No operational exceptions in the current dashboard feed.</Text>
+        </View>
+      )}
+    </OperatorCard>
+  );
+}
+
+function QuotePipeline({ pipeline }: { pipeline?: AdminDashboard['quote_pipeline'] }) {
+  if (!pipeline) return null;
+  const stages = [
+    { key: 'new', label: 'New', value: pipeline.new ?? 0, color: brand.orange, bg: brand.orangeSoft },
+    { key: 'estimate_ready', label: 'Ready', value: pipeline.estimate_ready ?? 0, color: brand.purple, bg: brand.purpleSoft },
+    { key: 'sent', label: 'Sent', value: pipeline.sent ?? 0, color: brand.blue, bg: brand.blueSoft },
+    { key: 'booked', label: 'Booked', value: pipeline.booked ?? 0, color: brand.green, bg: brand.greenSoft },
+    { key: 'lost', label: 'Lost', value: pipeline.lost ?? 0, color: brand.red, bg: brand.redSoft },
+  ];
+  const total = stages.reduce((sum, stage) => sum + stage.value, 0);
+
+  return (
+    <OperatorCard>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <CardHeader title="Quote Pipeline" />
+        <Link href="/quotes" asChild>
+          <Pressable accessibilityLabel="Open quotes" accessibilityRole="link">
+            <Text style={{ color: brand.blue, fontSize: 13, fontWeight: '900' }}>View All</Text>
+          </Pressable>
+        </Link>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
+        {stages.map((stage) => (
+          <Link key={stage.key} href={`/quotes?readiness=${stage.key}` as Href} asChild>
+            <Pressable accessibilityLabel={`Open ${stage.label} quotes`} accessibilityRole="button" style={{ flexGrow: 1, width: '22%', minWidth: 112, borderRadius: 15, backgroundColor: stage.bg, padding: 12, gap: 5 }}>
+              <Text selectable style={{ color: stage.color, fontSize: 24, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{stage.value}</Text>
+              <Text style={{ color: brand.text, fontSize: 12, fontWeight: '900' }}>{stage.label}</Text>
+            </Pressable>
+          </Link>
+        ))}
+      </View>
+      <View style={{ height: 1, backgroundColor: brand.border }} />
+      <Text selectable style={{ color: brand.muted, fontSize: 12, lineHeight: 17, fontWeight: '700' }}>
+        {total ? `${total} quote${total === 1 ? '' : 's'} currently tracked across active pipeline stages.` : 'No active quote pipeline items returned.'}
+      </Text>
+    </OperatorCard>
   );
 }
 
@@ -283,7 +423,7 @@ function MoveStatus({ statusDonut }: { statusDonut: AdminDashboard['statusDonut'
           ))}
         </View>
       </View>
-      <Link href="/jobs" asChild>
+      <Link href="/moves" asChild>
         <FooterButton label="View All Moves" />
       </Link>
     </OperatorCard>
@@ -321,7 +461,7 @@ function UpcomingMoves({ moves }: { moves: AdminDashboard['upcomingMoves'] }) {
       </View>
       {visible.length ? (
         visible.map((move) => (
-          <Link key={move.id} href={`/jobs/${move.id}`} asChild>
+          <Link key={move.id} href={`/moves/${move.id}` as Href} asChild>
             <Pressable accessibilityLabel={`Open move ${move.contact?.name ?? move.id}`} accessibilityRole="button" style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
               <View style={{ width: 54, borderRadius: 15, backgroundColor: brand.blueSoft, paddingVertical: 9, alignItems: 'center', gap: 2 }}>
                 <Text style={{ color: brand.blue, fontSize: 11, fontWeight: '900' }}>{month(move.scheduled_date)}</Text>
@@ -445,6 +585,143 @@ function pathFromPoints(points: readonly (readonly [number, number])[]) {
   return points.map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ');
 }
 
+function attentionItems(data: AdminDashboard) {
+  if (data.attention) {
+    const backendItems = [
+      {
+        key: 'unsigned-documents',
+        title: 'Documents awaiting signature',
+        detail: 'Customer documents need a signature before the packet is complete.',
+        count: data.attention.unsigned_documents ?? 0,
+        href: '/documents' as Href,
+        Icon: FileText,
+        color: brand.red,
+        bg: brand.redSoft,
+        border: '#F7C8C8',
+      },
+      {
+        key: 'pending-payments',
+        title: 'Payments pending review',
+        detail: 'Manual payments or invoice activity need admin confirmation.',
+        count: data.attention.pending_payments ?? 0,
+        href: '/documents' as Href,
+        Icon: CircleDollarSign,
+        color: brand.green,
+        bg: brand.greenSoft,
+        border: '#C5E8D1',
+      },
+      {
+        key: 'new-quotes',
+        title: 'New quote requests',
+        detail: 'Fresh quote requests are waiting for estimate review.',
+        count: data.attention.new_quotes ?? 0,
+        href: '/quotes' as Href,
+        Icon: MessageSquareText,
+        color: brand.blue,
+        bg: brand.blueSoft,
+        border: '#CFE0FF',
+      },
+      {
+        key: 'unread-messages',
+        title: 'Unread customer messages',
+        detail: 'Customer conversations have unread messages.',
+        count: data.attention.unread_messages ?? 0,
+        href: '/messages' as Href,
+        Icon: MessageSquareText,
+        color: brand.purple,
+        bg: brand.purpleSoft,
+        border: '#DDD3FA',
+      },
+      {
+        key: 'missing-dispatch',
+        title: 'Moves missing dispatch details',
+        detail: 'Upcoming moves need crew, truck, schedule, or route information.',
+        count: data.attention.moves_missing_dispatch ?? 0,
+        href: '/schedule' as Href,
+        Icon: AlertTriangle,
+        color: brand.orange,
+        bg: brand.orangeSoft,
+        border: '#FAD7A2',
+      },
+    ];
+
+    return backendItems.filter((item) => item.count > 0).slice(0, 4);
+  }
+
+  const incompleteUpcoming = data.upcomingMoves.filter(
+    (move) => !move.scheduled_start_time || !move.origin_address || !move.destination_address || !move.contact?.phone,
+  );
+  const leadActivity = data.activity.filter((item) => item.source === 'lead' && daysAgo(item.created_at) <= 3);
+  const items: {
+    key: string;
+    title: string;
+    detail: string;
+    count: number;
+    href: Href;
+    Icon: typeof AlertTriangle;
+    color: string;
+    bg: string;
+    border: string;
+  }[] = [];
+
+  if (data.counts.inProgress > 0) {
+    items.push({
+      key: 'in-progress',
+      title: 'Active moves need monitoring',
+      detail: 'Check move status, crew notes, and customer updates before the next handoff.',
+      count: data.counts.inProgress,
+      href: '/moves',
+      Icon: Truck,
+      color: brand.purple,
+      bg: brand.purpleSoft,
+      border: '#DDD3FA',
+    });
+  }
+
+  if (incompleteUpcoming.length > 0) {
+    items.push({
+      key: 'missing-details',
+      title: 'Upcoming moves missing details',
+      detail: 'Some scheduled moves are missing a time, route, or customer phone number.',
+      count: incompleteUpcoming.length,
+      href: '/schedule',
+      Icon: AlertTriangle,
+      color: brand.orange,
+      bg: brand.orangeSoft,
+      border: '#FAD7A2',
+    });
+  }
+
+  if (leadActivity.length > 0) {
+    items.push({
+      key: 'recent-leads',
+      title: 'Recent quote activity',
+      detail: 'New lead activity has landed in the dashboard feed in the last 3 days.',
+      count: leadActivity.length,
+      href: '/quotes',
+      Icon: MessageSquareText,
+      color: brand.blue,
+      bg: brand.blueSoft,
+      border: '#CFE0FF',
+    });
+  }
+
+  return items.slice(0, 3);
+}
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const monthValue = String(date.getMonth() + 1).padStart(2, '0');
+  const dayValue = String(date.getDate()).padStart(2, '0');
+  return `${year}-${monthValue}-${dayValue}`;
+}
+
+function moveDateTime(move: AdminDashboard['upcomingMoves'][number]) {
+  const date = move.scheduled_date ?? '9999-12-31';
+  const time = move.scheduled_start_time ?? '23:59:59';
+  return new Date(`${date}T${time}`);
+}
+
 function statusColor(name: string) {
   if (name === 'completed') return brand.green;
   if (name === 'in_progress') return brand.purple;
@@ -481,6 +758,12 @@ function relativeTime(value: string) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   return `${days}d ago`;
+}
+
+function daysAgo(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
+  return Math.max(0, (Date.now() - date.getTime()) / 86400000);
 }
 
 function formatShortDay(value: string) {

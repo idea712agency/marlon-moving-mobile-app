@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { ReactNode, useState } from 'react';
-import { Image, Modal, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Image, Modal, Pressable, RefreshControl, ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { WeatherStrip } from '@/components/operator/WeatherStrip';
@@ -234,12 +234,14 @@ export function OperatorScreen({
   unread = 0,
   refreshing = false,
   onRefresh,
+  onEndReached,
   footer,
 }: {
   children: ReactNode;
   unread?: number;
   refreshing?: boolean;
   onRefresh?: () => void;
+  onEndReached?: () => void;
   footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -247,6 +249,12 @@ export function OperatorScreen({
   const isTabRoute = ['/home', '/moves', '/customers', '/schedule', '/more'].includes(pathname);
   const showOperatorFooter = !isTabRoute;
   const footerBottomPadding = footer && showOperatorFooter ? 220 : footer || showOperatorFooter ? 150 : 108;
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!onEndReached) return;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const remaining = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (remaining < 360) onEndReached();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: brand.bg }}>
@@ -254,6 +262,8 @@ export function OperatorScreen({
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={300}
         refreshControl={onRefresh ? <RefreshControl tintColor={brand.blue} refreshing={refreshing} onRefresh={onRefresh} /> : undefined}
         contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + footerBottomPadding, gap: 16 }}>
         {children}

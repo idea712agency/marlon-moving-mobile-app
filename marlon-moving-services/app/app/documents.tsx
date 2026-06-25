@@ -1,11 +1,12 @@
 import { Link } from 'expo-router';
-import { ChevronRight, ClipboardList, FileText } from 'lucide-react-native';
+import { ChevronRight, ClipboardList, FileText, PenLine } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { CustomerCard, CustomerEmpty, CustomerShell } from '@/components/customer/customer-shell';
 import { brand } from '@/constants/operator-brand';
 import { useCustomerDashboard } from '@/hooks/use-customer-dashboard';
+import { customerDocumentProgress, listCustomerJobDocuments } from '@/lib/customer-documents';
 import { listCustomerQuoteRequests } from '@/lib/customer-quote-requests';
 import { shortDate } from '@/lib/data';
 
@@ -16,8 +17,14 @@ export default function CustomerDocumentsScreen() {
     queryFn: listCustomerQuoteRequests,
   });
   const job = dashboard.data?.job ?? null;
-  const isLoading = dashboard.isLoading || requests.isLoading;
-  const error = dashboard.error || requests.error;
+  const moveDocuments = useQuery({
+    queryKey: ['customer-job-documents', job?.id ?? 'current', 'summary'],
+    enabled: Boolean(job?.id),
+    queryFn: () => listCustomerJobDocuments(job?.id),
+  });
+  const progress = customerDocumentProgress(moveDocuments.data?.documents ?? []);
+  const isLoading = dashboard.isLoading || requests.isLoading || moveDocuments.isLoading;
+  const error = dashboard.error || requests.error || moveDocuments.error;
   const totalItems = (job ? 1 : 0) + (requests.data?.length ?? 0);
 
   return (
@@ -29,6 +36,7 @@ export default function CustomerDocumentsScreen() {
       onRefresh={() => {
         void dashboard.refetch();
         void requests.refetch();
+        if (job?.id) void moveDocuments.refetch();
       }}>
       {isLoading ? <ActivityIndicator color={brand.blue} /> : null}
       {error ? <CustomerEmpty title="Documents unavailable" body={error instanceof Error ? error.message : 'Unable to load documents.'} /> : null}
@@ -69,7 +77,15 @@ export default function CustomerDocumentsScreen() {
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
                   <Text selectable numberOfLines={1} style={{ color: brand.text, fontSize: 16, fontWeight: '900' }}>Move documents</Text>
-                  <Text style={{ color: brand.muted, fontSize: 12 }}>Documents sent for job {job.job_number}</Text>
+                  <Text selectable style={{ color: brand.muted, fontSize: 12 }}>Documents sent for job {job.job_number}</Text>
+                  {progress.signable ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <PenLine color={progress.remaining ? brand.orange : brand.green} size={13} />
+                      <Text selectable style={{ color: progress.remaining ? brand.orange : brand.green, fontSize: 11, fontWeight: '900' }}>
+                        {progress.signed} of {progress.signable} signed
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <ChevronRight color={brand.muted} size={18} />
               </View>
