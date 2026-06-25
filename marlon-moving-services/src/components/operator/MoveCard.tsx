@@ -205,12 +205,12 @@ export function MoveCard({ move }: { move: MoveListItem }) {
           <ActionButton
             label="Assign Crew"
             icon={<UserRoundPlus color={brand.blue} size={13} strokeWidth={2.5} />}
-            onPress={() => router.push(`/dispatch/${move.id}`)}
+            onPress={() => router.push(`/moves/${move.id}`)}
           />
           <ActionButton
             label="Message"
             icon={<MessageCircle color={brand.blue} size={13} strokeWidth={2.5} />}
-            onPress={() => {}}
+            onPress={() => router.push(`/messages?job_id=${move.id}`)}
           />
         </View>
       </View>
