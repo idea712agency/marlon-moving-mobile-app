@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -37,12 +37,15 @@ import {
   useOperatorJobActions,
 } from '@/hooks/use-operator-job';
 import {
+  type DocumentTokenCatalogItem,
   type JobDocumentTemplate,
+  type PreviewResponse,
   useJobDocumentTemplateActions,
   useJobDocumentTemplates,
 } from '@/hooks/use-job-document-templates';
 import type { DocumentDetail, ManualPaymentSubmission } from '@/lib/data';
 import { errorMessage, money, shortDate, shortTime } from '@/lib/data';
+import { estimateFromUnknown, priceRange } from '@/lib/adminEstimate';
 import { invokeSupabaseFunction } from '@/lib/supabase-functions';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/types/supabase';
@@ -111,7 +114,7 @@ export default function MoveDetailsScreen() {
       <CrewCard data={data} actions={actions} />
       <ChecklistCard checklist={data.checklist} actions={actions} />
       <InventoryCard inventory={data.inventory} />
-      <DocumentsCard job={job} documents={data.documents} />
+      <DocumentsCard data={data} />
       <InvoiceCard data={data} actions={actions} />
       <ManualPaymentsCard payments={data.manual_payments ?? []} actions={actions} />
       <MessagesCard messages={data.messages} actions={actions} />
@@ -289,7 +292,9 @@ function InventoryCard({ inventory }: { inventory: OperatorInventoryItem[] }) {
   );
 }
 
-function DocumentsCard({ job, documents }: { job: OperatorJob; documents: OperatorDocument[] }) {
+function DocumentsCard({ data }: { data: OperatorJobDetail }) {
+  const job = data.job;
+  const documents = data.documents;
   const jobId = job.id;
   const linkedCustomer = Boolean((job as OperatorJob & { customer_user_id?: string | null }).customer_user_id);
   const queryClient = useQueryClient();
@@ -298,9 +303,37 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
   const [preview, setPreview] = useState<{ title: string; version?: number | null; html: string; htmlSource?: 'docx' | 'body_html'; missingTokens?: string[] } | null>(null);
   const [viewer, setViewer] = useState<{ title: string; url: string; htmlPreviewUrl?: string | null; isPdf?: boolean | null; isHtmlSnapshot?: boolean | null; mimeType?: string | null } | null>(null);
   const [adminHtmlPreviewOpen, setAdminHtmlPreviewOpen] = useState(false);
+  const [readinessOpen, setReadinessOpen] = useState(false);
   const [viewingDocumentId, setViewingDocumentId] = useState('');
   const [sendingDocumentId, setSendingDocumentId] = useState('');
-  const grouped = useMemo(() => groupTemplates(templates.data ?? []), [templates.data]);
+  const templateRows = useMemo(
+    () => mergeTemplateDocumentState(templates.data?.templates ?? [], documents),
+    [templates.data?.templates, documents],
+  );
+  const tokenCatalog = templates.data?.tokenCatalog ?? [];
+  const packageTemplates = useMemo(() => templateRows.filter((template) => template.required_in_package !== false), [templateRows]);
+  const preflightQueries = useQueries({
+    queries: packageTemplates.map((template) => ({
+      queryKey: ['job-document-template-preview', jobId, template.id, template.version],
+      enabled: Boolean(jobId && template.id),
+      queryFn: async () =>
+        invokeSupabaseFunction<PreviewResponse>('admin-preview-document-template', {
+          body: { template_id: template.id, job_id: jobId },
+        }),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+  const preflightByTemplateId = useMemo(() => {
+    const map = new Map<string, PreviewResponse | undefined>();
+    packageTemplates.forEach((template, index) => map.set(template.id, preflightQueries[index]?.data));
+    return map;
+  }, [packageTemplates, preflightQueries]);
+  const preflightPending = preflightQueries.some((query) => query.isLoading || query.isFetching);
+  const readiness = useMemo(
+    () => buildDocumentReadiness(data, templateRows, tokenCatalog, preflightByTemplateId),
+    [data, templateRows, tokenCatalog, preflightByTemplateId],
+  );
+  const grouped = useMemo(() => groupTemplates(templateRows), [templateRows]);
   const sendDocument = useMutation({
     mutationFn: async (documentId: string) =>
       invokeSupabaseFunction<{ status: 'sent'; document: OperatorDocument }>('admin-send-document-to-customer', { body: { document_id: documentId } }),
@@ -332,6 +365,12 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
       Alert.alert('Document locked', 'This document is signed and locked. Generate a new draft? The signed copy stays in the record.');
       return;
     }
+    const state = readiness.templateStates.get(template.id);
+    if (state?.blockers.length) {
+      setReadinessOpen(true);
+      Alert.alert('Missing required fields', `${templateTitle(template)} needs ${state.blockers.length} required field${state.blockers.length === 1 ? '' : 's'} before generation.`);
+      return;
+    }
     try {
       await actions.generateDocument.mutateAsync({ templateId: template.id, replace: true });
       Alert.alert(template.status === 'draft' ? 'Document regenerated' : 'Document generated');
@@ -345,6 +384,11 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
   };
 
   const generatePackage = async () => {
+    if (readiness.blockers.length) {
+      setReadinessOpen(true);
+      Alert.alert('Packet needs attention', 'Complete the blocker fields before generating the full document package.');
+      return;
+    }
     try {
       const result = await actions.generatePackage.mutateAsync();
       Alert.alert('Document package complete', `Generated ${result.generated.length} · Skipped ${result.skipped_locked.length} locked`);
@@ -357,7 +401,7 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
     if (!documentId) return;
     setViewingDocumentId(documentId);
     try {
-      const detail = await invokeSupabaseFunction<DocumentDetail>('mobile-get-document-detail', { body: { document_id: documentId } });
+      const detail = await invokeSupabaseFunction<DocumentDetail>('admin-get-document-detail', { body: { document_id: documentId } });
       if (!detail.document) throw new Error('Document is not available.');
       const path = detail.document.file_path;
       const url = detail.signed_url ?? await signedMediaUrl(path);
@@ -400,15 +444,21 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
   return (
     <OperatorCard>
       <SectionTitle icon={<FileText color={brand.blue} size={20} />} title={`Documents (${documents.length})`} />
+      <DocumentReadinessCard
+        readiness={readiness}
+        checking={preflightPending}
+        onReview={() => setReadinessOpen(true)}
+        onRefresh={() => void refreshReadinessPreflight(queryClient, jobId, packageTemplates)}
+      />
       <PrimaryAction
-        label={actions.generatePackage.isPending ? 'Generating package...' : 'Generate document package'}
-        disabled={actions.generatePackage.isPending}
+        label={actions.generatePackage.isPending ? 'Generating package...' : readiness.blockers.length ? 'Review missing fields' : documents.length ? 'Regenerate document package' : 'Generate document package'}
+        disabled={actions.generatePackage.isPending || preflightPending}
         icon={<FileText color="#FFFFFF" size={16} />}
-        onPress={() => void generatePackage()}
+        onPress={() => readiness.blockers.length ? setReadinessOpen(true) : void generatePackage()}
       />
       {templates.isLoading ? <ActivityIndicator color={brand.blue} /> : null}
       {templates.error ? <EmptyPanel title="Templates unavailable" body={errorMessage(templates.error)} /> : null}
-      {!templates.isLoading && !templates.error && !templates.data?.length ? (
+      {!templates.isLoading && !templates.error && !templateRows.length ? (
         <EmptyPanel title="No templates available" body="Document templates will appear here once they are active." />
       ) : null}
       {grouped.map((group) => (
@@ -420,6 +470,7 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
             <TemplateRow
               key={template.id}
               template={template}
+              readiness={readiness.templateStates.get(template.id)}
               busy={busy || viewingDocumentId === template.document_id}
               onPreview={() => void previewTemplate(template)}
               onGenerate={() => void generateTemplate(template)}
@@ -493,10 +544,18 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
         title="HTML snapshot"
         subtitle={viewer?.title ?? 'Generated document'}
         uri={viewer?.htmlPreviewUrl ?? undefined}
+        isHtmlSnapshot
+        mimeType="text/html"
         visible={adminHtmlPreviewOpen}
         banner={null}
         footer={null}
         onClose={() => setAdminHtmlPreviewOpen(false)}
+      />
+      <MissingFieldsSheet
+        visible={readinessOpen}
+        readiness={readiness}
+        data={data}
+        onClose={() => setReadinessOpen(false)}
       />
     </OperatorCard>
   );
@@ -504,12 +563,14 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
 
 function TemplateRow({
   template,
+  readiness,
   busy,
   onPreview,
   onGenerate,
   onView,
 }: {
   template: JobDocumentTemplate;
+  readiness?: TemplateReadinessState;
   busy: boolean;
   onPreview: () => void;
   onGenerate: () => void;
@@ -518,15 +579,27 @@ function TemplateRow({
   const signed = template.status === 'signed' || Boolean(template.locked_at);
   const draft = template.status === 'draft';
   const hasDocument = Boolean(template.document_id);
-  const generateLabel = signed ? 'Signed' : draft ? 'Regenerate' : 'Generate';
+  const readinessLabel = readinessChipLabel(readiness);
+  const blocked = Boolean(readiness?.blockers.length);
+  const rowIssues = [...(readiness?.blockers ?? []), ...(readiness?.warnings ?? [])];
+  const generateLabel = signed ? 'Signed' : blocked ? 'Missing fields' : draft ? 'Regenerate' : 'Generate';
   return (
     <View style={styles.templateRow}>
       <View style={{ flex: 1, gap: 5 }}>
         <Text selectable style={{ color: brand.text, fontSize: 14, fontWeight: '900' }}>{templateTitle(template)}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           <StatusChip label={templateStatusLabel(template)} status={template.status} />
+          {readinessLabel ? <ReadinessStatusChip label={readinessLabel.label} tone={readinessLabel.tone} /> : null}
           {template.signature_required ? <Chip label="Signature required" /> : null}
         </View>
+        {rowIssues.length ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+            {rowIssues.slice(0, 5).map((issue) => (
+              <RequirementChip key={issue.token} label={issue.label} severity={issue.severity} />
+            ))}
+            {rowIssues.length > 5 ? <RequirementChip label={`+${rowIssues.length - 5} more`} severity="warning" /> : null}
+          </View>
+        ) : null}
       </View>
       <View style={{ width: '100%', flexDirection: 'row', gap: 8 }}>
         <Pressable disabled={busy} onPress={onPreview} style={styles.templateSecondaryButton}>
@@ -537,7 +610,7 @@ function TemplateRow({
             <Text style={styles.templateSecondaryText}>View</Text>
           </Pressable>
         ) : null}
-        <Pressable disabled={busy || signed} onPress={onGenerate} style={[styles.templatePrimaryButton, { opacity: busy || signed ? 0.55 : 1 }]}>
+        <Pressable disabled={busy || signed || blocked} onPress={onGenerate} style={[styles.templatePrimaryButton, { opacity: busy || signed || blocked ? 0.55 : 1 }]}>
           <Text style={styles.templatePrimaryText}>{generateLabel}</Text>
         </Pressable>
       </View>
@@ -549,6 +622,125 @@ function StatusChip({ label, status }: { label: string; status: JobDocumentTempl
   const color = status === 'signed' ? brand.green : status === 'draft' ? brand.orange : brand.muted;
   const backgroundColor = status === 'signed' ? brand.greenSoft : status === 'draft' ? brand.orangeSoft : brand.bg;
   return <View style={{ borderRadius: 999, backgroundColor, paddingHorizontal: 9, paddingVertical: 5 }}><Text style={{ color, fontSize: 10, fontWeight: '900' }}>{label}</Text></View>;
+}
+
+function ReadinessStatusChip({ label, tone }: { label: string; tone: ReadinessTone }) {
+  const color = tone === 'ready' ? brand.green : tone === 'warning' ? brand.orange : brand.red;
+  const backgroundColor = tone === 'ready' ? brand.greenSoft : tone === 'warning' ? brand.orangeSoft : '#FEE2E2';
+  return <View style={{ borderRadius: 999, backgroundColor, paddingHorizontal: 9, paddingVertical: 5 }}><Text style={{ color, fontSize: 10, fontWeight: '900' }}>{label}</Text></View>;
+}
+
+function RequirementChip({ label, severity }: { label: string; severity: ReadinessIssue['severity'] }) {
+  const blocker = severity === 'blocker';
+  return (
+    <View style={{ borderRadius: 999, backgroundColor: blocker ? '#FEE2E2' : brand.orangeSoft, paddingHorizontal: 8, paddingVertical: 4 }}>
+      <Text selectable numberOfLines={1} style={{ color: blocker ? brand.red : brand.orange, fontSize: 9, fontWeight: '900' }}>{label}</Text>
+    </View>
+  );
+}
+
+function DocumentReadinessCard({
+  readiness,
+  checking,
+  onReview,
+  onRefresh,
+}: {
+  readiness: DocumentReadinessSummary;
+  checking: boolean;
+  onReview: () => void;
+  onRefresh: () => void;
+}) {
+  const tone: ReadinessTone = readiness.blockers.length ? 'blocker' : readiness.warnings.length ? 'warning' : 'ready';
+  const title = !readiness.templateCount ? 'Incomplete' : readiness.blockers.length ? 'Needs attention' : readiness.warnings.length ? 'Ready with optional items' : 'Ready to generate';
+  const body = readiness.blockers.length
+    ? `${readiness.blockers.length} blocker${readiness.blockers.length === 1 ? '' : 's'} must be fixed before generating the full packet.`
+    : readiness.warnings.length
+      ? `${readiness.warnings.length} optional item${readiness.warnings.length === 1 ? '' : 's'} found. You can still generate.`
+      : 'Required document data is present for the package.';
+  return (
+    <View style={[styles.readinessCard, { borderColor: tone === 'ready' ? brand.green : tone === 'warning' ? brand.orange : brand.red }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+        <View style={[styles.readinessIcon, { backgroundColor: tone === 'ready' ? brand.greenSoft : tone === 'warning' ? brand.orangeSoft : '#FEE2E2' }]}>
+          {tone === 'ready' ? <Check color={brand.green} size={17} strokeWidth={3} /> : <AlertTriangle color={tone === 'warning' ? brand.orange : brand.red} size={18} />}
+        </View>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text selectable style={{ color: brand.text, fontSize: 15, fontWeight: '900' }}>{checking ? 'Checking readiness…' : title}</Text>
+          <Text selectable style={{ color: brand.muted, fontSize: 12, lineHeight: 17 }}>{body}</Text>
+          <Text style={{ color: brand.muted, fontSize: 11, fontWeight: '800' }}>
+            {readiness.readyCount} ready · {readiness.blockers.length} missing · {readiness.warnings.length} optional
+          </Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Pressable onPress={onReview} style={[styles.templateSecondaryButton, { flex: 1 }]}>
+          <Text style={styles.templateSecondaryText}>Review missing fields</Text>
+        </Pressable>
+        <Pressable onPress={onRefresh} disabled={checking} style={[styles.templateSecondaryButton, { flex: 1, opacity: checking ? 0.55 : 1 }]}>
+          <Text style={styles.templateSecondaryText}>{checking ? 'Checking…' : 'Check readiness'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function MissingFieldsSheet({ visible, readiness, data, onClose }: {
+  visible: boolean;
+  readiness: DocumentReadinessSummary;
+  data: OperatorJobDetail;
+  onClose: () => void;
+}) {
+  const groupedIssues = groupReadinessIssues([...readiness.blockers, ...readiness.warnings]);
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,21,47,0.34)' }}>
+        <Pressable accessibilityLabel="Close missing fields" onPress={onClose} style={{ position: 'absolute', inset: 0 }} />
+        <View style={styles.previewSheet}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <Text selectable style={{ color: brand.text, fontSize: 18, fontWeight: '900' }}>Document readiness</Text>
+              <Text selectable style={{ color: brand.muted, fontSize: 12, fontWeight: '800' }}>Fix blockers before generating the full package.</Text>
+            </View>
+            <IconButton label="Close" icon={<Circle color={brand.text} size={18} />} onPress={onClose} />
+          </View>
+          {!groupedIssues.length ? <EmptyPanel title="No missing fields" body="This job has the required data for the document packet." /> : null}
+          {groupedIssues.map((group) => (
+            <View key={group.section} style={styles.missingGroup}>
+              <Text style={styles.label}>{sectionLabel(group.section)}</Text>
+              {group.items.map((issue) => (
+                <View key={`${issue.token}-${issue.templateIds.join('-')}`} style={styles.missingRow}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text selectable style={{ color: brand.text, fontSize: 13, fontWeight: '900' }}>{issue.label}</Text>
+                    <Text selectable style={{ color: brand.muted, fontSize: 11, lineHeight: 16 }}>{issue.templateNames.join(', ')}</Text>
+                  </View>
+                  <ReadinessStatusChip label={issue.severity === 'blocker' ? 'Blocker' : 'Warning'} tone={issue.severity === 'blocker' ? 'blocker' : 'warning'} />
+                </View>
+              ))}
+              <SectionDestinationAction section={group.section} data={data} onClose={onClose} />
+            </View>
+          ))}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SectionDestinationAction({ section, data, onClose }: {
+  section: DocumentTokenCatalogItem['section'];
+  data: OperatorJobDetail;
+  onClose: () => void;
+}) {
+  const action = destinationForSection(section, data);
+  if (!action) return null;
+  return (
+    <Pressable
+      onPress={() => {
+        onClose();
+        action.onPress();
+      }}
+      style={[styles.templateSecondaryButton, { alignSelf: 'stretch' }]}>
+      <Text style={styles.templateSecondaryText}>{action.label}</Text>
+    </Pressable>
+  );
 }
 
 function SmallStatusChip({ label, color, bg }: { label: string; color: string; bg: string }) {
@@ -877,9 +1069,286 @@ const groupInventory = (items: OperatorInventoryItem[]) => {
   return Array.from(map, ([category, groupItems]) => ({ category, items: groupItems }));
 };
 
+const mergeTemplateDocumentState = (templates: JobDocumentTemplate[], documents: OperatorDocument[]) => {
+  const documentsByTemplate = new Map<string, OperatorDocument>();
+  documents.forEach((document) => {
+    const templateId = (document as OperatorDocument & { template_id?: string | null }).template_id;
+    if (!templateId) return;
+    const current = documentsByTemplate.get(templateId);
+    const currentTime = current?.updated_at ? new Date(current.updated_at).getTime() : 0;
+    const nextTime = document.updated_at ? new Date(document.updated_at).getTime() : 0;
+    if (!current || nextTime >= currentTime) documentsByTemplate.set(templateId, document);
+  });
+
+  return templates.map((template) => {
+    if (template.document_id || template.status === 'draft' || template.status === 'signed') return template;
+    const document = documentsByTemplate.get(template.id) ?? documents.find((candidate) => documentNameMatchesTemplate(candidate, template));
+    if (!document) return template;
+
+    const record = document as OperatorDocument & {
+      generated_from_version?: number | null;
+      locked_at?: string | null;
+      is_signed?: boolean | null;
+    };
+    const signed = Boolean(record.locked_at || record.is_signed);
+    return {
+      ...template,
+      document_id: document.id,
+      generated_from_version: record.generated_from_version ?? template.generated_from_version ?? null,
+      locked_at: record.locked_at ?? template.locked_at ?? null,
+      status: signed ? 'signed' : 'draft',
+      state: {
+        ...(template.state ?? {}),
+        template_version: record.generated_from_version ?? template.state?.template_version ?? null,
+      },
+    } satisfies JobDocumentTemplate;
+  });
+};
+
+const documentNameMatchesTemplate = (document: OperatorDocument, template: JobDocumentTemplate) => {
+  const documentName = normalizeDocumentName(document.name);
+  const templateName = normalizeDocumentName(templateTitle(template));
+  const slugName = normalizeDocumentName(template.slug);
+  if (!documentName) return false;
+  if (templateName && documentName.includes(templateName)) return true;
+  if (slugName && documentName.includes(slugName)) return true;
+
+  const requiredWords = (template.slug || templateTitle(template))
+    .split(/[-_\s/]+/)
+    .map((word) => word.toLowerCase().trim())
+    .filter((word) => word.length > 2 && !['and', 'the', 'form'].includes(word));
+  return requiredWords.length > 0 && requiredWords.every((word) => documentName.includes(word));
+};
+
+const normalizeDocumentName = (value: string | null | undefined) =>
+  String(value ?? '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
 const numberOrNull = (value: string) => {
   const parsed = Number(value.replace(/[^0-9.]/g, ''));
   return Number.isFinite(parsed) && value.trim() ? parsed : null;
+};
+
+type ReadinessTone = 'ready' | 'warning' | 'blocker';
+
+type ReadinessIssue = {
+  token: string;
+  label: string;
+  severity: 'blocker' | 'warning';
+  section: DocumentTokenCatalogItem['section'];
+  templateIds: string[];
+  templateNames: string[];
+};
+
+type TemplateReadinessState = {
+  templateId: string;
+  blockers: ReadinessIssue[];
+  warnings: ReadinessIssue[];
+  ready: boolean;
+};
+
+type DocumentReadinessSummary = {
+  blockers: ReadinessIssue[];
+  warnings: ReadinessIssue[];
+  readyCount: number;
+  templateCount: number;
+  templateStates: Map<string, TemplateReadinessState>;
+};
+
+const refreshReadinessPreflight = async (queryClient: QueryClient, jobId: string, templates: JobDocumentTemplate[]) => {
+  await Promise.all(templates.map((template) =>
+    queryClient.invalidateQueries({ queryKey: ['job-document-template-preview', jobId, template.id, template.version] }),
+  ));
+};
+
+const buildDocumentReadiness = (
+  data: OperatorJobDetail,
+  templates: JobDocumentTemplate[],
+  tokenCatalog: DocumentTokenCatalogItem[],
+  preflightByTemplateId: Map<string, PreviewResponse | undefined>,
+): DocumentReadinessSummary => {
+  const catalog = new Map(tokenCatalog.map((item) => [item.token, item]));
+  const allBlockers = new Map<string, ReadinessIssue>();
+  const allWarnings = new Map<string, ReadinessIssue>();
+  const templateStates = new Map<string, TemplateReadinessState>();
+  let readyCount = 0;
+
+  templates.forEach((template) => {
+    const issues = new Map<string, ReadinessIssue>();
+    const requiredTokens = Array.isArray(template.requires) ? template.requires.filter(Boolean) : [];
+    requiredTokens.forEach((token) => {
+      if (!hasRequirementData(token, data)) {
+        addIssue(issues, token, template, catalog, 'requirement');
+      }
+    });
+
+    const missingTokens = preflightByTemplateId.get(template.id)?.missing_tokens ?? [];
+    missingTokens.forEach((token) => addIssue(issues, token, template, catalog, 'preview'));
+
+    const issueList = Array.from(issues.values());
+    const blockers = issueList.filter((issue) => issue.severity === 'blocker');
+    const warnings = issueList.filter((issue) => issue.severity === 'warning');
+    if (!blockers.length && !warnings.length) readyCount += 1;
+    templateStates.set(template.id, { templateId: template.id, blockers, warnings, ready: !blockers.length && !warnings.length });
+
+    blockers.forEach((issue) => mergeIssue(allBlockers, issue));
+    warnings.forEach((issue) => mergeIssue(allWarnings, issue));
+  });
+
+  return {
+    blockers: Array.from(allBlockers.values()),
+    warnings: Array.from(allWarnings.values()),
+    readyCount,
+    templateCount: templates.length,
+    templateStates,
+  };
+};
+
+const addIssue = (
+  issues: Map<string, ReadinessIssue>,
+  token: string,
+  template: JobDocumentTemplate,
+  catalog: Map<string, DocumentTokenCatalogItem>,
+  source: 'requirement' | 'preview',
+) => {
+  const item = catalog.get(token);
+  if (item?.severity === 'optional') return;
+  const severity = item?.severity ?? (source === 'requirement' ? 'blocker' : 'warning');
+  const issue: ReadinessIssue = {
+    token,
+    label: item?.label || token,
+    severity: severity === 'blocker' ? 'blocker' : 'warning',
+    section: item?.section ?? sectionFromToken(token),
+    templateIds: [template.id],
+    templateNames: [templateTitle(template)],
+  };
+  mergeIssue(issues, issue);
+};
+
+const mergeIssue = (map: Map<string, ReadinessIssue>, issue: ReadinessIssue) => {
+  const current = map.get(issue.token);
+  if (!current) {
+    map.set(issue.token, { ...issue });
+    return;
+  }
+  map.set(issue.token, {
+    ...current,
+    severity: current.severity === 'blocker' || issue.severity === 'blocker' ? 'blocker' : 'warning',
+    templateIds: Array.from(new Set([...current.templateIds, ...issue.templateIds])),
+    templateNames: Array.from(new Set([...current.templateNames, ...issue.templateNames])),
+  });
+};
+
+const hasRequirementData = (token: string, data: OperatorJobDetail) => {
+  const estimate = extractEstimate(data.quote_request?.conversation_data);
+  const invoice = data.invoice as (OperatorJobDetail['invoice'] & { balance?: number | null }) | null;
+  const normalized = token.replace(/_address$/, '').replace(/^customer\./, 'contact.');
+  switch (normalized) {
+    case 'contact.name':
+      return hasText(data.contact?.name);
+    case 'contact.email':
+      return hasText(data.contact?.email);
+    case 'contact.phone':
+      return hasText(data.contact?.phone);
+    case 'job.origin':
+      return hasText(data.job.origin_address);
+    case 'job.destination':
+      return hasText(data.job.destination_address);
+    case 'job.scheduled_date':
+      return hasText(data.job.scheduled_date);
+    case 'job.arrival_window':
+    case 'job.scheduled_start_time':
+      return hasText(data.job.scheduled_start_time);
+    case 'job.job_number':
+      return hasText(data.job.job_number);
+    case 'job.crew_size':
+      return hasPositiveNumber(data.job.crew_size ?? estimate?.crew.size);
+    case 'job.truck_size':
+      return hasText(data.job.truck_size ?? estimate?.crew.truckSize);
+    case 'estimate.total':
+      return hasPositiveNumber(data.job.estimated_total) || Boolean(estimate && priceRange(estimate).max > 0);
+    case 'estimate.deposit':
+    case 'estimate.deposit_amount':
+      return hasPositiveNumber(estimate?.deposit.requiredAmount);
+    case 'estimate.hours_grid':
+      return Boolean(estimate?.hours.length);
+    case 'invoice.total':
+      return hasPositiveNumber(invoice?.total);
+    case 'invoice.balance':
+      return hasPositiveNumber(invoice?.balance ?? invoice?.total);
+    case 'inventory.items':
+      return data.inventory.length > 0;
+    case 'checklist.items':
+      return data.checklist.length > 0;
+    default:
+      return true;
+  }
+};
+
+const extractEstimate = (conversationData: Json | null | undefined) => {
+  if (!conversationData || typeof conversationData !== 'object' || Array.isArray(conversationData)) return null;
+  const record = conversationData as Record<string, unknown>;
+  if (!record.estimate) return null;
+  return estimateFromUnknown(record.estimate);
+};
+
+const hasText = (value: unknown) => typeof value === 'string' && value.trim().length > 0;
+const hasPositiveNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const sectionFromToken = (token: string): DocumentTokenCatalogItem['section'] => {
+  const namespace = token.split('.')[0];
+  if (namespace === 'customer' || namespace === 'contact') return 'customer';
+  if (namespace === 'invoice') return 'invoice';
+  if (namespace === 'inventory' || namespace === 'move') return 'inventory';
+  if (namespace === 'checklist') return 'checklist';
+  if (namespace === 'estimate') return 'estimate';
+  if (namespace === 'signature' || namespace === 'signed') return 'signature';
+  if (namespace === 'company') return 'company';
+  return 'move';
+};
+
+const sectionLabel = (section: DocumentTokenCatalogItem['section']) => ({
+  customer: 'Customer',
+  move: 'Move details',
+  estimate: 'Estimate',
+  invoice: 'Invoice',
+  inventory: 'Inventory',
+  checklist: 'Checklist',
+  signature: 'Signature',
+  company: 'Company',
+}[section]);
+
+const groupReadinessIssues = (issues: ReadinessIssue[]) => {
+  const order: DocumentTokenCatalogItem['section'][] = ['customer', 'move', 'estimate', 'invoice', 'inventory', 'checklist', 'signature', 'company'];
+  const map = new Map<DocumentTokenCatalogItem['section'], ReadinessIssue[]>();
+  issues.forEach((issue) => map.set(issue.section, [...(map.get(issue.section) ?? []), issue]));
+  return order
+    .filter((section) => map.has(section))
+    .map((section) => ({ section, items: map.get(section) ?? [] }));
+};
+
+const destinationForSection = (section: DocumentTokenCatalogItem['section'], data: OperatorJobDetail): { label: string; onPress: () => void } | null => {
+  if (section === 'customer' && data.contact?.id) {
+    return { label: 'Open customer profile', onPress: () => router.push(`/customers/${data.contact?.id}`) };
+  }
+  if (section === 'estimate' && data.job.quote_request_id) {
+    return { label: 'Open estimate editor', onPress: () => router.push(`/estimate/new?quote=${data.job.quote_request_id}`) };
+  }
+  if (section === 'move') return { label: 'Review move details', onPress: () => undefined };
+  if (section === 'invoice') return { label: 'Review invoice card', onPress: () => undefined };
+  if (section === 'inventory') return { label: 'Review inventory card', onPress: () => undefined };
+  if (section === 'checklist') return { label: 'Review checklist card', onPress: () => undefined };
+  return null;
+};
+
+const readinessChipLabel = (state: TemplateReadinessState | undefined): { label: string; tone: ReadinessTone } | null => {
+  if (!state) return null;
+  if (state.blockers.length) return { label: 'Missing fields', tone: 'blocker' };
+  if (state.warnings.length) return { label: 'Warning', tone: 'warning' };
+  return { label: 'Ready', tone: 'ready' };
 };
 
 const groupTemplates = (templates: JobDocumentTemplate[]) => {
@@ -898,8 +1367,10 @@ const templateTitle = (template: JobDocumentTemplate) =>
   template.label || template.template_name || titleCase(template.slug);
 
 const templateStatusLabel = (template: JobDocumentTemplate) => {
-  const version = template.generated_from_version ?? template.version;
-  if (template.status === 'signed' || template.locked_at) return `Signed · v${version}`;
+  const version = template.state?.template_version ?? template.generated_from_version ?? template.version;
+  if (template.status === 'signed' || template.locked_at) {
+    return version < template.version ? `Signed · doc v${version} (template v${template.version})` : `Signed · doc v${version}`;
+  }
   if (template.status === 'draft') return `Draft · v${version}`;
   return 'Not generated';
 };
@@ -988,6 +1459,10 @@ const styles = {
   templateSecondaryText: { color: brand.blue, fontSize: 11, fontWeight: '900' as const },
   documentMiniButton: { minHeight: 32, borderRadius: 10, borderWidth: 1, borderColor: brand.blue, backgroundColor: brand.surface, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 8 },
   documentMiniText: { color: brand.blue, fontSize: 10, fontWeight: '900' as const },
+  readinessCard: { borderRadius: 14, borderWidth: 1, backgroundColor: brand.bg, padding: 12, gap: 10 },
+  readinessIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const },
+  missingGroup: { gap: 8, borderTopWidth: 1, borderTopColor: brand.border, paddingTop: 10 },
+  missingRow: { minHeight: 52, borderRadius: 12, borderWidth: 1, borderColor: brand.border, padding: 10, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   previewSheet: { width: '100%' as const, maxWidth: 640, maxHeight: '88%' as const, alignSelf: 'center' as const, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: brand.border, backgroundColor: brand.surface, padding: 14, gap: 10 },
   previewBanner: { borderRadius: 12, backgroundColor: brand.blueSoft, paddingHorizontal: 12, paddingVertical: 9 },
   warningBox: { borderRadius: 13, borderWidth: 1, borderColor: brand.orange, backgroundColor: brand.orangeSoft, padding: 12, gap: 7 },

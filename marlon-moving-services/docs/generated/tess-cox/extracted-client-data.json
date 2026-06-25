@@ -1,0 +1,69 @@
+{
+  "customer": {
+    "name": "Tess Cox",
+    "phone": "(910) 548-4206",
+    "email": "tess.j.cox@aol.com",
+    "source_note": "Documents 2-7 agree on these values. Document 1 contains apparent typos: Tess Coxc, (910) 548-4209, tess.j.coxc@aol.com."
+  },
+  "job": {
+    "job_number": "MMS-2026-0615",
+    "scheduled_date": "2026-06-16",
+    "arrival_window": "8:00 AM \u2013 9:00 AM",
+    "scheduled_start_time": "08:00:00",
+    "origin_address": "Leesburg, Virginia",
+    "destination_address": "Ashburn, Virginia",
+    "crew_size": 3,
+    "truck_size": "28 ft Moving Truck",
+    "hourly_rate": 149,
+    "truck_fee": 240,
+    "status": "confirmed"
+  },
+  "estimate": {
+    "deposit_paid": 250,
+    "packing_fee": 149,
+    "hours_grid": [
+      {
+        "hours": 7,
+        "labor": 1043,
+        "truck_fee": 240,
+        "packing_fee": 149,
+        "estimated_total": 1432,
+        "deposit_paid": 250,
+        "balance_due": 1182
+      },
+      {
+        "hours": 8,
+        "labor": 1192,
+        "truck_fee": 240,
+        "packing_fee": 149,
+        "estimated_total": 1581,
+        "deposit_paid": 250,
+        "balance_due": 1331
+      },
+      {
+        "hours": 10,
+        "labor": 1490,
+        "truck_fee": 240,
+        "packing_fee": 149,
+        "estimated_total": 1879,
+        "deposit_paid": 250,
+        "balance_due": 1629
+      },
+      {
+        "hours": 12,
+        "labor": 1788,
+        "truck_fee": 240,
+        "packing_fee": 149,
+        "estimated_total": 2177,
+        "deposit_paid": 250,
+        "balance_due": 1927
+      }
+    ]
+  },
+  "company": {
+    "name": "Marlon Moving Services, LLC",
+    "address": "22054 Shaw Rd, Sterling, VA 20164",
+    "phone": "571-525-6129",
+    "website": "MARLONMOVINGSERVICES.COM"
+  }
+}

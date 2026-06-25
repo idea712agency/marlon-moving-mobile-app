@@ -1,0 +1,98 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Bill of Lading / Moving Contract</title><style>
+body { font-family: Arial, Helvetica, sans-serif; color: #111827; max-width: 820px; margin: 32px auto; line-height: 1.45; padding: 0 24px; }
+h2 { font-size: 20px; margin: 28px 0 10px; border-bottom: 1px solid #d1d5db; padding-bottom: 6px; }
+h3 { font-size: 16px; margin: 18px 0 8px; }
+p { margin: 8px 0; }
+ul { margin: 8px 0 14px 24px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 13px; }
+th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; }
+th { background: #f1f5f9; text-align: left; }
+.doc-header { background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 16px; margin-bottom: 18px; }
+.signature-block { border: 1px dashed #94a3b8; padding: 10px; margin: 10px 0; background: #f8fafc; }
+</style></head><body><h1>Bill of Lading / Moving Contract</h1><section class="doc-header">
+<p>{{company.name}}<br/>Business Address: {{company.address}}<br/>Phone: {{company.phone}}<br/>Website: {{company.website}}<br/>Estimate #: {{job.job_number}}<br/>Date Issued: Jun 2, 2026<br/>Updated Copy Date: June 15, 2026<br/>Bill of Lading #: MMS-2026-0616-TC</p>
+<p>────────────────────────────────────</p>
+<p>CUSTOMER INFORMATION<br/>Customer Name: {{customer.name}}<br/>Phone: {{customer.phone}}<br/>Email: {{customer.email}}<br/>Move Date: {{job.scheduled_date}}<br/>Origin Address: {{job.origin_address}}<br/>Destination Address: {{job.destination_address}}<br/>Scheduled Arrival Window: {{job.arrival_window}}</p>
+</section>
+<h2>SCHEDULE</h2>
+<p>Scheduled Arrival: Tuesday, {{job.scheduled_date}} between 8:00 AM and 9:00 AM.</p>
+<p>Marlon Moving Services, LLC is scheduled to arrive at the origin location on Tuesday, {{job.scheduled_date}} between 8:00 AM and 9:00 AM.</p>
+<p>Service will begin only after Customer approval and signed paperwork. If Customer does not approve the paperwork, estimate, or required forms, no work will begin and Marlon Moving Services, LLC may leave the site without obligation to perform the move.</p>
+<p>The goal is to complete loading, transportation, unloading, and basic placement on Tuesday, {{job.scheduled_date}}. If the job requires additional labor time due to item volume, packing needs, access conditions, stairs, elevators, long carries, loading/unloading conditions, travel conditions, waiting time, parking conditions, or other job-related factors, final charges may be adjusted based on actual labor time and services performed</p>
+<h2>SERVICES PROVIDED</h2>
+<ul><li>Loading</li><li>Transportation</li><li>Unloading</li><li>Basic placement of items as directed</li><li>Moving blankets, dollies, equipment, and standard furniture protection</li><li>Packing, if requested or approved</li><li>Packing materials as needed and charged based on actual usage</li><li>Unpacking</li><li>Other: ___________________________</li></ul>
+<p>Important: Marlon Moving Services, LLC does not unpack boxes unless separately agreed in writing.</p>
+<h2>SHIPMENT DESCRIPTION</h2>
+<p>This shipment includes household goods, furniture, boxes, and approved personal property belonging to {{customer.name}}, including but not limited to:</p>
+<ul><li>Household furniture</li><li>Boxes and packed personal belongings</li><li>TVs, mirrors, pictures, and frames</li><li>Bedroom, living room, dining room, and household items</li><li>Fragile items identified by Customer before the move</li><li>Other approved items prepared for transportation</li></ul>
+<p>Customer understands that this is a residential household move involving furniture and personal property that may include fragile, delicate, high-value, sentimental, irreplaceable, or special-handling items.</p>
+<p>Customer is responsible for identifying fragile, high-value, delicate, sentimental, irreplaceable, or special-handling items before loading begins.</p>
+<p>Customer should personally transport cash, jewelry, firearms, medication, passports, legal documents, financial records, sentimental items, small high-value items, and irreplaceable items whenever possible.</p>
+<h2>CREW, LABOR, AND MOVING CHARGES</h2>
+<p>Crew: {{job.crew_size}} Professional Movers<br/>Hourly Rate: ${{job.hourly_rate}} per hour<br/>Estimated Time: 7 to 12 hours<br/>Truck Service Fee: ${{job.truck_fee}}<br/>Minimum Service Time: 3 hours</p>
+<p>The truck service fee includes the moving truck, fuel, mileage, moving blankets, dollies, equipment, and standard furniture protection.</p>
+<p>Marlon Moving Services, LLC does not charge for travel time. Customer’s billable time begins only when the crew arrives at the home and starts working.</p>
+<p>Time ends after the last item is unloaded at the destination and the move-related work is completed.</p>
+<h2>ESTIMATED MOVING TOTAL BEFORE OPTIONAL PACKING / PROTECTION PACKAGE</h2>
+<table><tr><th>Working Hours</th><th>Labor</th><th>Truck Service Fee</th><th>Estimated Total</th></tr><tr><td>7 Hours</td><td>$1,043</td><td>${{job.truck_fee}}</td><td>$1,283</td></tr><tr><td>8 Hours</td><td>$1,192</td><td>${{job.truck_fee}}</td><td>$1,432</td></tr><tr><td>10 Hours</td><td>$1,490</td><td>${{job.truck_fee}}</td><td>$1,730</td></tr><tr><td>12 Hours</td><td>$1,788</td><td>${{job.truck_fee}}</td><td>$2,028</td></tr></table>
+<p>Optional packing/protection package is not included in the moving total above unless approved by Customer.</p>
+<h2>OPTIONAL PACKING &amp; PROTECTION PACKAGE</h2>
+<p>Customer may approve the optional packing and protection package for ${{estimate.packing_fee}}.</p>
+<p>This package may include professional wrapping and protection for:</p>
+<ul><li>Furniture</li><li>TVs</li><li>Mirrors</li><li>Pictures and frames</li><li>Fragile items</li><li>Stretch wrap</li><li>Protective materials</li><li>Moving blankets</li></ul>
+<p>Optional Packing &amp; Protection Package: ${{estimate.packing_fee}}</p>
+<p>Approved by Customer: ☐ Yes ☐ No</p>
+<p>Customer acknowledges that optional packing/protection services are intended to help protect items during the move, but they do not create full replacement value coverage, full retail-value coverage, cargo insurance, or additional valuation coverage.</p>
+<h2>ESTIMATED TOTAL INCLUDING OPTIONAL PACKING / PROTECTION PACKAGE</h2>
+<table><tr><th>Working Hours</th><th>Labor</th><th>Truck Service Fee</th><th>Optional Package</th><th>Estimated Total</th></tr><tr><td>7 Hours</td><td>$1,043</td><td>${{job.truck_fee}}</td><td>${{estimate.packing_fee}}</td><td>$1,432</td></tr><tr><td>8 Hours</td><td>$1,192</td><td>${{job.truck_fee}}</td><td>${{estimate.packing_fee}}</td><td>$1,581</td></tr><tr><td>10 Hours</td><td>$1,490</td><td>${{job.truck_fee}}</td><td>${{estimate.packing_fee}}</td><td>$1,879</td></tr><tr><td>12 Hours</td><td>$1,788</td><td>${{job.truck_fee}}</td><td>${{estimate.packing_fee}}</td><td>$2,177</td></tr></table>
+<p>Final charges may vary based on actual labor time, packing materials used, additional items, access conditions, waiting time, stairs, elevators, long carries, special handling, parking conditions, additional services requested by Customer, or other job-related factors.</p>
+<h2>LIMITED LIABILITY / PROTECTION NOTICE</h2>
+<p>Customer has reviewed and received the Terms &amp; Conditions / Liability Information provided by Marlon Moving Services, LLC.</p>
+<p>Customer has reviewed and signed, or will be asked to review and sign, the Limited Liability Acknowledgment Form.</p>
+<p>Marlon Moving Services, LLC is a licensed and insured moving company and will exercise reasonable care while handling Customer property.</p>
+<p>Customer understands that moving and transportation services involve inherent risks, including but not limited to scratches, dents, shifting during transportation, breakage of fragile items, and damage resulting from pre-existing conditions, weak furniture construction, particleboard furniture, manufacturer defects, loose parts, improperly packed items, or items not identified as fragile or high-value before the move.</p>
+<p>Customer understands that standard moving protection, moving blankets, dollies, and equipment are included with the service.</p>
+<p>Customer understands that this Bill of Lading is not an insurance policy and does not provide full replacement value coverage, full retail-value coverage, cargo insurance, or additional valuation coverage.</p>
+<p>Customer understands that any liability of Marlon Moving Services, LLC, if any, is limited according to this Bill of Lading, the Moving Service Agreement &amp; Estimate, the Terms &amp; Conditions / Liability Information, the Limited Liability Acknowledgment Form, applicable tariffs, and applicable law.</p>
+<p>Customer is responsible for obtaining separate insurance or additional protection before the move begins if Customer wants protection beyond the standard liability terms described in the moving documents.</p>
+<h2>IMPORTANT TERMS</h2>
+<p>Customer acknowledges that this shipment is subject to:</p>
+<p>Moving Service Agreement &amp; Estimate</p>
+<p>Terms &amp; Conditions / Liability Information</p>
+<p>This Bill of Lading / Moving Contract</p>
+<p>Limited Liability Acknowledgment Form</p>
+<p>Fragile Items &amp; High-Value Household Items Acknowledgment</p>
+<p>Pre-Move Photo / Condition Checklist</p>
+<p>Delivery Completion &amp; Final Walkthrough Form</p>
+<p>Any other written terms signed by both parties</p>
+<p>Marlon Moving Services, LLC is not responsible for pre-existing damage, loose parts, weak furniture construction, particleboard furniture failure, internal electronics failure after transportation, items packed by Customer, or items not properly disclosed, except as required by the signed agreement and applicable law.</p>
+<p>Customer is responsible for identifying any high-value, fragile, delicate, sentimental, irreplaceable, hazardous, leaking, or special-handling items before loading begins.</p>
+<p>Customer is responsible for ensuring reasonable access at pickup and delivery locations, including parking, elevators, stairs, loading areas, building requirements, and any required permissions.</p>
+<h2>PAYMENT SUMMARY</h2>
+<p>Estimated Moving Total Before Optional Packing / Protection Package: $1,283–$2,028</p>
+<p>Optional Packing / Protection Package: ${{estimate.packing_fee}}, if approved</p>
+<p>Estimated Total Including Optional Package: $1,432–$2,177</p>
+<p>Deposit Paid: ${{estimate.deposit_paid}}</p>
+<p>Final Total: $________________</p>
+<p>Amount Paid at Completion: $________________</p>
+<p>Balance Due: $________________</p>
+<p>Final balance is due upon completion unless otherwise agreed in writing.</p>
+<p>Accepted payment methods may include cash, check, Zelle, and credit card.</p>
+<h2>ESTIMATED BALANCE AFTER ${{estimate.deposit_paid}} DEPOSIT</h2>
+<p>This section is for estimate clarity only. Final balance will be based on actual labor time, approved services, and final charges.</p>
+<table><tr><th>Working Hours</th><th>Estimated Total With Optional Package</th><th>Deposit Paid</th><th>Estimated Balance Due</th></tr><tr><td>7 Hours</td><td>$1,432</td><td>${{estimate.deposit_paid}}</td><td>$1,182</td></tr><tr><td>8 Hours</td><td>$1,581</td><td>${{estimate.deposit_paid}}</td><td>$1,331</td></tr><tr><td>10 Hours</td><td>$1,879</td><td>${{estimate.deposit_paid}}</td><td>$1,629</td></tr><tr><td>12 Hours</td><td>$2,177</td><td>${{estimate.deposit_paid}}</td><td>$1,927</td></tr></table>
+<h2>PICKUP CONFIRMATION</h2>
+<p>Customer confirms that the shipment was released to Marlon Moving Services, LLC for loading and transportation.</p>
+<div class="signature-block"><p>Customer Signature at Pickup: ___________________________________</p></div>
+<p>Printed Name: ___________________________________</p>
+<p>Date / Time: ____________________</p>
+<p>Marlon Moving Services Representative: ___________________________________</p>
+<h2>DELIVERY CONFIRMATION</h2>
+<p>Customer confirms that the shipment was delivered to the destination listed above.</p>
+<p>Customer had the opportunity to inspect the visible condition of delivered items before the crew left the destination.</p>
+<div class="signature-block"><p>Customer Signature at Delivery: ___________________________________</p></div>
+<p>Printed Name: ___________________________________</p>
+<p>Date / Time: ____________________</p>
+<p>Marlon Moving Services Representative: ___________________________________</p>
+<h2>DAMAGE / ISSUE NOTES AT DELIVERY</h2>
+<p>Note: This Bill of Lading does not provide full replacement value coverage, full retail-value coverage, cargo insurance, or additional valuation coverage. Any additional insurance or protection must be obtained separately by Customer before the move begins.</p></body></html>

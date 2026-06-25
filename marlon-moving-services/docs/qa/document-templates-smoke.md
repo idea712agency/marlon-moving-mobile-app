@@ -1,5 +1,26 @@
 # Manual Smoke Test Checklist - Dynamic Document Templates
 
+## 2026-06-25 Generated Artifact QA
+
+Automated smoke QA passed for all seven generated document templates. Temporary PDFs, HTML snapshots, rendered page PNGs, and viewer screenshots were kept out of the repo; this table preserves the durable regression signal only.
+
+| Template | Pages | PDF | HTML Snapshot | Issues |
+| --- | ---: | --- | --- | --- |
+| `estimate-deposit` | 4 | Pass | Pass | None |
+| `terms-liability` | 6 | Pass | Pass | None |
+| `bill-of-lading` | 6 | Pass | Pass | None |
+| `limited-liability` | 3 | Pass | Pass | None |
+| `fragile-high-value` | 4 | Pass | Pass | None |
+| `pre-move-photo-checklist` | 2 | Pass | Pass | None |
+| `delivery-walkthrough` | 2 | Pass | Pass | None |
+
+Verification notes:
+
+- QA source: local generated artifacts under `/private/tmp/mms-pdf-qa`.
+- Admin in-app PDF and HTML viewer screenshots were captured for all seven templates during the run.
+- No raw QA PDFs, HTML files, rendered PNGs, or screenshots should be committed.
+- Lovable should rerun this seven-template matrix if template generation, document delivery, signed/locked behavior, or customer visibility changes.
+
 Record this before starting:
 
 | Field | Value |

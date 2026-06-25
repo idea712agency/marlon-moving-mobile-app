@@ -20,6 +20,9 @@ export type AdminDocumentTemplate = {
   is_active: boolean;
   display_order?: number | null;
   updated_at?: string | null;
+  requires?: string[] | null;
+  usage_count?: number | null;
+  version_usage?: TemplateVersionUsageSummary[] | null;
 };
 
 export type TemplatePayload = {
@@ -35,24 +38,93 @@ export type TemplatePayload = {
   required_for_job: boolean;
   is_active: boolean;
   display_order?: number | null;
+  requires?: string[] | null;
 };
 
-type TemplateListResponse = AdminDocumentTemplate[] | { templates?: AdminDocumentTemplate[]; data?: AdminDocumentTemplate[] };
-type TemplateDetailResponse = { template: AdminDocumentTemplate; merge_tokens: string[] };
-type UpsertTemplateResponse = { template: AdminDocumentTemplate; version_bumped: boolean };
-type PreviewTemplateResponse = { html: string; html_source?: 'docx' | 'body_html'; missing_tokens?: string[] };
+export type TemplateTokenCatalogItem = {
+  token: string;
+  label: string;
+  severity: 'blocker' | 'warning' | 'info';
+};
+
+export type TemplateVersionUsageSummary = {
+  version: number;
+  total?: number | null;
+  document_count?: number | null;
+  signed?: number | null;
+  signed_count?: number | null;
+  latest_generated_at?: string | null;
+};
+
+export type TemplateResolvedToken = {
+  token: string;
+  value: string | null;
+  source: 'job' | 'customer' | 'company' | 'fallback';
+};
+
+export type TemplateVersionSampleDocument = {
+  document_id: string;
+  job_id?: string | null;
+  job_code?: string | null;
+  generated_at?: string | null;
+  is_signed?: boolean | null;
+};
+
+export type TemplateVersionUsageDetail = {
+  version: number;
+  total: number;
+  signed: number;
+  sample_documents?: TemplateVersionSampleDocument[];
+  sample_jobs?: TemplateVersionSampleDocument[];
+  data?: {
+    version: number;
+    total: number;
+    signed: number;
+    sample_documents?: TemplateVersionSampleDocument[];
+    sample_jobs?: TemplateVersionSampleDocument[];
+  };
+};
+
+type TemplateListResponse = AdminDocumentTemplate[] | {
+  templates?: AdminDocumentTemplate[];
+  data?: AdminDocumentTemplate[];
+  token_catalog?: TemplateTokenCatalogItem[];
+  tokenCatalog?: TemplateTokenCatalogItem[];
+};
+type TemplateDetailResponse = {
+  template: AdminDocumentTemplate;
+  merge_tokens: string[];
+  token_catalog?: TemplateTokenCatalogItem[];
+  tokenCatalog?: TemplateTokenCatalogItem[];
+  usage_count?: number;
+  version_usage?: TemplateVersionUsageSummary[];
+};
+type UpsertTemplateResponse = { template: AdminDocumentTemplate; version_bumped: boolean; prev_version?: number | null; new_version?: number };
+type PreviewTemplateResponse = {
+  html: string;
+  html_source?: 'docx' | 'body_html';
+  missing_tokens?: string[];
+  resolved_tokens?: TemplateResolvedToken[];
+};
 type DeleteTemplateResponse = { ok: true };
 type UploadTemplateSourceResponse = {
   template: AdminDocumentTemplate;
   version_bumped?: boolean;
+  prev_version?: number | null;
+  new_version?: number;
+  body_html_preview?: string;
   warnings?: string[];
 };
 
 export const templateListKey = ['admin-document-templates'] as const;
 export const templateDetailKey = (id?: string | null) => ['admin-document-template', id ?? 'new'] as const;
+export const templateVersionUsageKey = (id?: string | null, version?: number | null) => ['admin-document-template-version-usage', id ?? 'none', version ?? 'none'] as const;
 
 const normalizeTemplates = (response: TemplateListResponse) =>
   Array.isArray(response) ? response : response.templates ?? response.data ?? [];
+
+export const normalizeTokenCatalog = (response: TemplateListResponse | TemplateDetailResponse | undefined) =>
+  response && !Array.isArray(response) ? response.token_catalog ?? response.tokenCatalog ?? [] : [];
 
 export function useTemplateList() {
   return useQuery({
@@ -68,6 +140,19 @@ export function useTemplate(id: string | undefined) {
     queryFn: async () => {
       if (!id) throw new Error('Missing template id.');
       return invokeSupabaseFunction<TemplateDetailResponse>('admin-get-document-template', { body: { template_id: id } });
+    },
+  });
+}
+
+export function useTemplateVersionUsage(templateId: string | undefined, version: number | null) {
+  return useQuery({
+    queryKey: templateVersionUsageKey(templateId, version),
+    enabled: Boolean(templateId && version != null),
+    queryFn: async () => {
+      if (!templateId || version == null) throw new Error('Missing template version.');
+      return invokeSupabaseFunction<TemplateVersionUsageDetail>('admin-get-template-version-usage', {
+        body: { template_id: templateId, version },
+      });
     },
   });
 }

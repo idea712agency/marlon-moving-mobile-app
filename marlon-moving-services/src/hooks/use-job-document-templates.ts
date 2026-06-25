@@ -11,6 +11,16 @@ export type JobDocumentTemplateCategory = {
   bg?: string | null;
 };
 
+export type DocumentTokenSeverity = 'blocker' | 'warning' | 'optional';
+export type DocumentTokenSection = 'customer' | 'move' | 'estimate' | 'invoice' | 'inventory' | 'checklist' | 'signature' | 'company';
+
+export type DocumentTokenCatalogItem = {
+  token: string;
+  label: string;
+  severity: DocumentTokenSeverity;
+  section: DocumentTokenSection;
+};
+
 export type JobDocumentTemplate = {
   id: string;
   slug: string;
@@ -25,11 +35,25 @@ export type JobDocumentTemplate = {
   document_id?: string | null;
   generated_from_version?: number | null;
   locked_at?: string | null;
+  requires?: string[] | null;
+  state?: {
+    template_version?: number | null;
+  } | null;
 };
 
-type TemplateListResponse = JobDocumentTemplate[] | { templates?: JobDocumentTemplate[]; data?: JobDocumentTemplate[] };
+export type JobDocumentTemplateList = {
+  templates: JobDocumentTemplate[];
+  tokenCatalog: DocumentTokenCatalogItem[];
+};
+
+type TemplateListResponse = JobDocumentTemplate[] | {
+  templates?: JobDocumentTemplate[];
+  data?: JobDocumentTemplate[];
+  token_catalog?: DocumentTokenCatalogItem[];
+  tokenCatalog?: DocumentTokenCatalogItem[];
+};
 type RenderSource = 'docx' | 'body_html';
-type PreviewResponse = { html: string; version?: number | null; html_source?: RenderSource; missing_tokens?: string[] };
+export type PreviewResponse = { html: string; version?: number | null; html_source?: RenderSource; missing_tokens?: string[] };
 type GenerateResponse = { document_id: string; storage_path: string; version: number; html_source?: RenderSource };
 type PackageResponse = {
   generated: { template_slug?: string; document_id?: string; file_url?: string; status?: string }[];
@@ -43,7 +67,10 @@ export function useJobDocumentTemplates(jobId: string | undefined) {
     queryFn: async () => {
       if (!jobId) throw new Error('Missing job id.');
       const result = await invokeSupabaseFunction<TemplateListResponse>('admin-list-document-templates', { body: { job_id: jobId } });
-      return Array.isArray(result) ? result : result.templates ?? result.data ?? [];
+      return {
+        templates: Array.isArray(result) ? result : result.templates ?? result.data ?? [],
+        tokenCatalog: Array.isArray(result) ? [] : result.token_catalog ?? result.tokenCatalog ?? [],
+      } satisfies JobDocumentTemplateList;
     },
   });
 }
@@ -77,7 +104,7 @@ export function useJobDocumentTemplateActions(jobId: string | undefined) {
   const generatePackage = useMutation({
     mutationFn: async () => {
       if (!jobId) throw new Error('Missing job id.');
-      return invokeSupabaseFunction<PackageResponse>('admin-generate-job-document-package', { body: { job_id: jobId } });
+      return invokeSupabaseFunction<PackageResponse>('admin-generate-job-document-package', { body: { job_id: jobId, replace: true } });
     },
     onSuccess: () => void invalidate(),
   });
