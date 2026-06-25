@@ -9,6 +9,8 @@ export type AdminDocumentTemplate = {
   document_type: string;
   category_id?: string | null;
   body_html: string;
+  docx_template_path?: string | null;
+  source_file_path?: string | null;
   version: number;
   signature_required: boolean;
   required_for_job: boolean;
@@ -24,6 +26,8 @@ export type TemplatePayload = {
   document_type: string;
   category_id?: string | null;
   body_html: string;
+  docx_template_path?: string | null;
+  source_file_path?: string | null;
   signature_required: boolean;
   required_for_job: boolean;
   is_active: boolean;

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { Eye, Save, Trash2 } from 'lucide-react-native';
+import { Eye, FileUp, Save, Trash2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, Switch, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from 'react-native';
 
@@ -34,6 +35,7 @@ type FormState = {
   document_type: string;
   category_id: string | null;
   body_html: string;
+  docx_template_path: string | null;
   signature_required: boolean;
   required_for_job: boolean;
   is_active: boolean;
@@ -47,6 +49,7 @@ const EMPTY_FORM: FormState = {
   document_type: 'contract',
   category_id: null,
   body_html: '<h1>{{company.name}}</h1>\n<p>{{customer.name}}</p>',
+  docx_template_path: null,
   signature_required: true,
   required_for_job: false,
   is_active: true,
@@ -67,6 +70,7 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
   const [missingTokens, setMissingTokens] = useState<string[]>([]);
   const [localError, setLocalError] = useState('');
   const [previewJobId, setPreviewJobId] = useState('');
+  const [uploadingDocx, setUploadingDocx] = useState(false);
 
   useEffect(() => {
     if (!template.data?.template) return;
@@ -112,6 +116,8 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
       document_type: next.document_type.trim(),
       category_id: next.category_id || null,
       body_html: next.body_html,
+      docx_template_path: next.docx_template_path || null,
+      source_file_path: next.docx_template_path || null,
       signature_required: next.signature_required,
       required_for_job: next.required_for_job,
       is_active: next.is_active,
@@ -148,6 +154,53 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
       setPreviewHtml(result.html);
     } catch (error) {
       setLocalError(errorMessage(error));
+    }
+  };
+
+  const uploadDocxSource = async () => {
+    try {
+      setLocalError('');
+      if (!templateId) {
+        setLocalError('Save the template before uploading a DOCX source.');
+        return;
+      }
+      const slug = form.slug.trim();
+      if (!slug) {
+        setLocalError('Add a slug before uploading a DOCX source.');
+        return;
+      }
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: [
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/msword',
+        ],
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset.name.toLowerCase().endsWith('.docx')) {
+        setLocalError('Choose a .docx Word document.');
+        return;
+      }
+      setUploadingDocx(true);
+      const response = await fetch(asset.uri);
+      if (!response.ok) throw new Error('The selected DOCX file could not be read.');
+      const body = await response.arrayBuffer();
+      const path = `documents/templates/source/${slug}.docx`;
+      const { error: storageError } = await supabase.storage.from('media').upload(path, body, {
+        contentType: asset.mimeType || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        upsert: true,
+      });
+      if (storageError) throw storageError;
+      await upsert.mutateAsync(buildPayload({ docx_template_path: path }));
+      setForm((current) => ({ ...current, docx_template_path: path }));
+      Alert.alert('DOCX source uploaded', 'This template now has a Word source file for exact PDF generation.');
+      if (templateId) void template.refetch();
+    } catch (error) {
+      setLocalError(errorMessage(error));
+    } finally {
+      setUploadingDocx(false);
     }
   };
 
@@ -234,6 +287,26 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
           placeholderTextColor="#94A3B8"
           style={styles.htmlInput}
         />
+      </OperatorCard>
+
+      <OperatorCard>
+        <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>Exact DOCX source</Text>
+        <Text style={{ color: brand.muted, fontSize: 12, lineHeight: 17 }}>
+          Upload the original Word document when this template needs exact PDF generation. The file is stored in Supabase Storage and linked to this template.
+        </Text>
+        <View style={{ borderRadius: 12, borderWidth: 1, borderColor: brand.border, backgroundColor: '#FBFCFE', padding: 12 }}>
+          <Text selectable style={{ color: form.docx_template_path ? brand.text : brand.muted, fontSize: 12, fontWeight: '800' }}>
+            {form.docx_template_path || 'No DOCX source uploaded'}
+          </Text>
+        </View>
+        <ActionButton
+          label={uploadingDocx || upsert.isPending ? 'Uploading...' : 'Upload DOCX source'}
+          icon={<FileUp color={brand.blue} size={17} />}
+          secondary
+          disabled={uploadingDocx || upsert.isPending || !templateId}
+          onPress={() => void uploadDocxSource()}
+        />
+        {!templateId ? <Text style={{ color: brand.muted, fontSize: 11, fontWeight: '800' }}>Save the template first, then upload its DOCX source.</Text> : null}
       </OperatorCard>
 
       <OperatorCard>
@@ -343,6 +416,7 @@ const formFromTemplate = (template: AdminDocumentTemplate): FormState => ({
   document_type: template.document_type ?? 'contract',
   category_id: template.category_id ?? null,
   body_html: template.body_html ?? '',
+  docx_template_path: template.docx_template_path ?? template.source_file_path ?? null,
   signature_required: Boolean(template.signature_required),
   required_for_job: Boolean(template.required_for_job),
   is_active: template.is_active !== false,
