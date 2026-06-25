@@ -141,9 +141,11 @@ export default function QuoteDetailScreen() {
           </Pressable>
         ) : null}
         {canMessage ? (
-          <Pressable onPress={() => router.push('/messages')} style={{ height: 50, borderRadius: 13, borderWidth: 1, borderColor: brand.purple, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: brand.purple, fontSize: 15, fontWeight: '900' }}>Message customer</Text>
-          </Pressable>
+          <Link href={`/messages?quote_id=${quote.id}`} asChild>
+            <Pressable style={{ height: 50, borderRadius: 13, borderWidth: 1, borderColor: brand.purple, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: brand.purple, fontSize: 15, fontWeight: '900' }}>Message customer</Text>
+            </Pressable>
+          </Link>
         ) : null}
         {canMarkLost ? (
           <Pressable onPress={() => setLostSheetOpen(true)} style={{ height: 50, borderRadius: 13, borderWidth: 1, borderColor: brand.red, alignItems: 'center', justifyContent: 'center' }}>

@@ -13,7 +13,6 @@ import {
   MessageCircle,
   Package,
   RefreshCw,
-  Send,
   Truck,
   UserRound,
   Users,
@@ -88,7 +87,7 @@ export default function MoveDetailsScreen() {
         <IconButton label="Refresh" icon={<RefreshCw color={brand.blue} size={18} />} onPress={() => void query.refetch()} />
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <Link href="/messages" asChild><Pressable style={styles.headerAction}><MessageCircle color={brand.blue} size={16} /><Text style={styles.headerActionText}>Messages</Text></Pressable></Link>
+        <Link href={`/messages?job_id=${job.id}`} asChild><Pressable style={styles.headerAction}><MessageCircle color={brand.blue} size={16} /><Text style={styles.headerActionText}>Messages</Text></Pressable></Link>
         <View style={styles.headerAction}><CreditCard color={brand.blue} size={16} /><Text style={styles.headerActionText}>{data.invoice?.status ? titleCase(data.invoice.status) : 'No invoice'}</Text></View>
         <View style={styles.headerAction}><FileText color={brand.blue} size={16} /><Text style={styles.headerActionText}>{(data.manual_payments ?? []).length} payments</Text></View>
       </View>
@@ -117,7 +116,7 @@ export default function MoveDetailsScreen() {
       <DocumentsCard data={data} />
       <InvoiceCard data={data} actions={actions} />
       <ManualPaymentsCard payments={data.manual_payments ?? []} actions={actions} />
-      <MessagesCard messages={data.messages} actions={actions} />
+      <MessagesCard jobId={job.id} messages={data.messages} />
       <TimelineCard activities={data.activities} actions={actions} />
     </OperatorScreen>
   );
@@ -927,24 +926,16 @@ function ManualPaymentsCard({ payments, actions }: {
   );
 }
 
-function MessagesCard({ messages, actions }: { messages: OperatorMessage[]; actions: ReturnType<typeof useOperatorJobActions> }) {
-  const [content, setContent] = useState('');
+function MessagesCard({ jobId, messages }: { jobId: string; messages: OperatorMessage[] }) {
   const recent = [...messages].sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))).slice(-5);
-  const send = () => {
-    const trimmed = content.trim();
-    if (!trimmed) return;
-    runAction('Message sent', async () => {
-      await actions.sendMessage.mutateAsync(trimmed);
-      setContent('');
-    });
-  };
   return (
     <OperatorCard>
       <SectionTitle icon={<MessageCircle color={brand.blue} size={20} />} title="Messages" />
       {!recent.length ? <EmptyPanel title="No messages yet" body="Customer and admin messages linked to this move will appear here." /> : null}
       {recent.map((message) => <MessageBubble key={message.id} message={message} />)}
-      <Field label="Reply" value={content} multiline onChangeText={setContent} />
-      <PrimaryAction label={actions.sendMessage.isPending ? 'Sending…' : 'Send reply'} disabled={actions.sendMessage.isPending || !content.trim()} icon={<Send color="#FFFFFF" size={16} />} onPress={send} />
+      <Link href={`/messages?job_id=${jobId}`} asChild>
+        <Pressable style={styles.secondaryButton}><Text style={styles.secondaryText}>Open messages</Text></Pressable>
+      </Link>
     </OperatorCard>
   );
 }

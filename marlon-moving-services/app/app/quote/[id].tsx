@@ -4,6 +4,7 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { CustomerCard, CustomerEmpty, CustomerShell } from '@/components/customer/customer-shell';
+import { CustomerConversationThread } from '@/components/messaging/conversation-thread';
 import { brand } from '@/constants/operator-brand';
 import {
   createEstimatePhotoUrls,
@@ -53,13 +54,14 @@ export default function CustomerQuoteDetailScreen() {
             <Detail label="Delivery" value={lead.destination_address || 'Pending'} />
           </Section>
         </CustomerCard>
-        <CustomerCard>
-          <Text selectable style={{ color: brand.text, fontSize: 16, fontWeight: '900' }}>Details need an update</Text>
+      <CustomerCard>
+        <Text selectable style={{ color: brand.text, fontSize: 16, fontWeight: '900' }}>Details need an update</Text>
           <Text selectable style={{ color: brand.muted, fontSize: 14, lineHeight: 21 }}>
             This request is on file, but some saved details are incomplete. Submit a fresh estimate request if you need to update the move information.
           </Text>
-        </CustomerCard>
-        <Link href="/app/estimate" asChild>
+      </CustomerCard>
+      <CustomerConversationThread title="Messages about this quote" quoteId={lead.id} />
+      <Link href="/app/estimate" asChild>
           <Pressable style={styles.primaryButton}><Text style={styles.primaryText}>Submit updated details</Text></Pressable>
         </Link>
       </CustomerShell>
@@ -113,6 +115,7 @@ export default function CustomerQuoteDetailScreen() {
           <Detail label="Notes" value={payload.notes || 'No notes'} />
         </Section>
       </CustomerCard>
+      <CustomerConversationThread title="Messages about this quote" quoteId={lead.id} />
 
       <Link href={`/app/estimate?request=${lead.id}`} asChild>
         <Pressable style={styles.primaryButton}><Text style={styles.primaryText}>Edit and submit revision</Text></Pressable>

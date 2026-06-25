@@ -5,6 +5,7 @@ import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { CustomerCard, CustomerEmpty, CustomerShell } from '@/components/customer/customer-shell';
+import { CustomerConversationThread } from '@/components/messaging/conversation-thread';
 import { brand } from '@/constants/operator-brand';
 import {
   customerDocumentChip,
@@ -49,6 +50,7 @@ export default function CustomerMoveDocumentsScreen() {
         <CustomerEmpty title="No documents sent yet" body="When our team sends forms, estimates, or move paperwork, they will appear here." />
       ) : null}
       {documents.length ? <PacketProgressCard progress={progress} /> : null}
+      {jobId ? <CustomerConversationThread title="Messages for this move" jobId={jobId} /> : null}
 
       {groups.map((group) => (
         <View key={group.label} style={{ gap: 10 }}>
