@@ -3,6 +3,7 @@ import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
+  AlertTriangle,
   CalendarDays,
   Check,
   Circle,
@@ -294,7 +295,7 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
   const queryClient = useQueryClient();
   const templates = useJobDocumentTemplates(jobId);
   const actions = useJobDocumentTemplateActions(jobId);
-  const [preview, setPreview] = useState<{ title: string; version?: number | null; html: string } | null>(null);
+  const [preview, setPreview] = useState<{ title: string; version?: number | null; html: string; htmlSource?: 'docx' | 'body_html'; missingTokens?: string[] } | null>(null);
   const [viewer, setViewer] = useState<{ title: string; url: string; htmlPreviewUrl?: string | null; isPdf?: boolean | null; isHtmlSnapshot?: boolean | null; mimeType?: string | null } | null>(null);
   const [adminHtmlPreviewOpen, setAdminHtmlPreviewOpen] = useState(false);
   const [viewingDocumentId, setViewingDocumentId] = useState('');
@@ -314,7 +315,13 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
   const previewTemplate = async (template: JobDocumentTemplate) => {
     try {
       const result = await actions.previewTemplate.mutateAsync(template.id);
-      setPreview({ title: templateTitle(template), version: result.version ?? template.version, html: result.html });
+      setPreview({
+        title: templateTitle(template),
+        version: result.version ?? template.version,
+        html: result.html,
+        htmlSource: result.html_source,
+        missingTokens: result.missing_tokens ?? [],
+      });
     } catch (error) {
       Alert.alert('Preview unavailable', errorMessage(error));
     }
@@ -461,6 +468,8 @@ function DocumentsCard({ job, documents }: { job: OperatorJob; documents: Operat
         title={preview?.title ?? ''}
         subtitle={preview?.version ? `Template v${preview.version}` : 'Template preview'}
         html={preview?.html ?? ''}
+        htmlSource={preview?.htmlSource}
+        missingTokens={preview?.missingTokens ?? []}
         banner="Preview only - not saved"
         visible={Boolean(preview)}
         footer={null}
@@ -546,10 +555,35 @@ function SmallStatusChip({ label, color, bg }: { label: string; color: string; b
   return <View style={{ borderRadius: 999, backgroundColor: bg, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ color, fontSize: 9, fontWeight: '900' }}>{label}</Text></View>;
 }
 
+function RenderSourceChip({ source }: { source: 'docx' | 'body_html' }) {
+  const docx = source === 'docx';
+  return (
+    <View style={{ alignSelf: 'flex-start', borderRadius: 999, backgroundColor: docx ? brand.greenSoft : brand.blueSoft, paddingHorizontal: 10, paddingVertical: 6 }}>
+      <Text style={{ color: docx ? brand.green : brand.blue, fontSize: 10, fontWeight: '900' }}>
+        {docx ? 'Rendered from DOCX' : 'Rendered from HTML fallback'}
+      </Text>
+    </View>
+  );
+}
+
+function WarningList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <View style={styles.warningBox}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <AlertTriangle color={brand.orange} size={17} />
+        <Text style={{ color: brand.orange, fontSize: 13, fontWeight: '900' }}>{title}</Text>
+      </View>
+      {items.map((item) => <Text key={item} selectable style={{ color: brand.text, fontSize: 12, lineHeight: 17 }}>• {item}</Text>)}
+    </View>
+  );
+}
+
 function HtmlPreviewSheet({
   title,
   subtitle,
   html,
+  htmlSource,
+  missingTokens = [],
   uri,
   htmlPreviewUrl,
   isPdf,
@@ -564,6 +598,8 @@ function HtmlPreviewSheet({
   title: string;
   subtitle: string;
   html?: string;
+  htmlSource?: 'docx' | 'body_html';
+  missingTokens?: string[];
   uri?: string;
   htmlPreviewUrl?: string | null;
   isPdf?: boolean | null;
@@ -587,6 +623,8 @@ function HtmlPreviewSheet({
             </View>
             <IconButton label="Close" icon={<Circle color={brand.text} size={18} />} onPress={onClose} />
           </View>
+          {htmlSource ? <RenderSourceChip source={htmlSource} /> : null}
+          {missingTokens.length ? <WarningList title="Missing tokens" items={missingTokens} /> : null}
           {banner ? <View style={styles.previewBanner}><Text style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>{banner}</Text></View> : null}
           {html ? (
             <View style={styles.webViewFrame}>
@@ -952,6 +990,7 @@ const styles = {
   documentMiniText: { color: brand.blue, fontSize: 10, fontWeight: '900' as const },
   previewSheet: { width: '100%' as const, maxWidth: 640, maxHeight: '88%' as const, alignSelf: 'center' as const, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: brand.border, backgroundColor: brand.surface, padding: 14, gap: 10 },
   previewBanner: { borderRadius: 12, backgroundColor: brand.blueSoft, paddingHorizontal: 12, paddingVertical: 9 },
+  warningBox: { borderRadius: 13, borderWidth: 1, borderColor: brand.orange, backgroundColor: brand.orangeSoft, padding: 12, gap: 7 },
   webViewFrame: { height: 520, minHeight: 320, borderRadius: 16, borderWidth: 1, borderColor: brand.border, overflow: 'hidden' as const, backgroundColor: '#FFFFFF' },
   timelineRow: { flexDirection: 'row' as const, gap: 9, paddingVertical: 7 },
   timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, backgroundColor: brand.blue },

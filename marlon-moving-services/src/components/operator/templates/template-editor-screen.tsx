@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { Eye, FileUp, Save, Trash2 } from 'lucide-react-native';
+import { AlertTriangle, Eye, FileUp, Save, Trash2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, Switch, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from 'react-native';
 
@@ -15,6 +15,7 @@ import {
   usePreviewTemplate,
   useTemplate,
   useTemplateList,
+  useUploadTemplateSource,
   useUpsertTemplate,
 } from '@/hooks/use-admin-document-templates';
 import { errorMessage } from '@/lib/data';
@@ -62,15 +63,17 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
   const templateList = useTemplateList();
   const categories = useDocumentCategories();
   const upsert = useUpsertTemplate();
+  const uploadSource = useUploadTemplateSource();
   const remove = useDeleteTemplate();
   const preview = usePreviewTemplate();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [previewHtml, setPreviewHtml] = useState('');
   const [missingTokens, setMissingTokens] = useState<string[]>([]);
+  const [previewSource, setPreviewSource] = useState<'docx' | 'body_html' | null>(null);
+  const [uploadWarnings, setUploadWarnings] = useState<string[]>([]);
   const [localError, setLocalError] = useState('');
   const [previewJobId, setPreviewJobId] = useState('');
-  const [uploadingDocx, setUploadingDocx] = useState(false);
 
   useEffect(() => {
     if (!template.data?.template) return;
@@ -151,6 +154,7 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
         job_id: previewJobId.trim(),
       });
       setMissingTokens(result.missing_tokens ?? []);
+      setPreviewSource(result.html_source ?? null);
       setPreviewHtml(result.html);
     } catch (error) {
       setLocalError(errorMessage(error));
@@ -160,10 +164,7 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
   const uploadDocxSource = async () => {
     try {
       setLocalError('');
-      if (!templateId) {
-        setLocalError('Save the template before uploading a DOCX source.');
-        return;
-      }
+      setUploadWarnings([]);
       const slug = form.slug.trim();
       if (!slug) {
         setLocalError('Add a slug before uploading a DOCX source.');
@@ -183,24 +184,22 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
         setLocalError('Choose a .docx Word document.');
         return;
       }
-      setUploadingDocx(true);
-      const response = await fetch(asset.uri);
-      if (!response.ok) throw new Error('The selected DOCX file could not be read.');
-      const body = await response.arrayBuffer();
-      const path = `documents/templates/source/${slug}.docx`;
-      const { error: storageError } = await supabase.storage.from('media').upload(path, body, {
-        contentType: asset.mimeType || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        upsert: true,
+      if ((asset.size ?? 0) > 2 * 1024 * 1024) {
+        setLocalError('Choose a DOCX file that is 2 MB or smaller.');
+        return;
+      }
+      const response = await uploadSource.mutateAsync({
+        templateId,
+        slug,
+        file: { uri: asset.uri, name: asset.name, mimeType: asset.mimeType, file: asset.file },
       });
-      if (storageError) throw storageError;
-      await upsert.mutateAsync(buildPayload({ docx_template_path: path }));
-      setForm((current) => ({ ...current, docx_template_path: path }));
-      Alert.alert('DOCX source uploaded', 'This template now has a Word source file for exact PDF generation.');
+      setForm(formFromTemplate(response.template));
+      setUploadWarnings(response.warnings ?? []);
+      Alert.alert(response.version_bumped ? `DOCX source uploaded · v${response.template.version}` : 'DOCX source uploaded');
+      if (isNew) router.replace(`/templates/${response.template.id}`);
       if (templateId) void template.refetch();
     } catch (error) {
       setLocalError(errorMessage(error));
-    } finally {
-      setUploadingDocx(false);
     }
   };
 
@@ -274,7 +273,25 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
       </OperatorCard>
 
       <OperatorCard>
-        <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>Body HTML</Text>
+        <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>Source DOCX</Text>
+        <Text style={{ color: brand.muted, fontSize: 12, lineHeight: 17 }}>
+          DOCX is the source of truth for exact PDF generation. HTML fallback is used only when no DOCX source is uploaded.
+        </Text>
+        <SourceMetadata template={template.data?.template} fallbackPath={form.docx_template_path} />
+        {uploadWarnings.length ? <WarningList title="DOCX conversion warnings" items={uploadWarnings} /> : null}
+        <ActionButton
+          label={uploadSource.isPending ? 'Uploading...' : 'Replace DOCX'}
+          icon={<FileUp color={brand.blue} size={17} />}
+          secondary
+          disabled={uploadSource.isPending || !form.slug.trim()}
+          onPress={() => void uploadDocxSource()}
+        />
+        {!templateId ? <Text style={{ color: brand.muted, fontSize: 11, fontWeight: '800' }}>Enter a canonical slug to upload and auto-create the template source.</Text> : null}
+      </OperatorCard>
+
+      <OperatorCard>
+        <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>HTML fallback</Text>
+        <Text style={{ color: brand.muted, fontSize: 12, lineHeight: 17 }}>Used only if no DOCX source is uploaded.</Text>
         <TextInput
           value={form.body_html}
           multiline
@@ -290,34 +307,8 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
       </OperatorCard>
 
       <OperatorCard>
-        <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>Exact DOCX source</Text>
-        <Text style={{ color: brand.muted, fontSize: 12, lineHeight: 17 }}>
-          Upload the original Word document when this template needs exact PDF generation. The file is stored in Supabase Storage and linked to this template.
-        </Text>
-        <View style={{ borderRadius: 12, borderWidth: 1, borderColor: brand.border, backgroundColor: '#FBFCFE', padding: 12 }}>
-          <Text selectable style={{ color: form.docx_template_path ? brand.text : brand.muted, fontSize: 12, fontWeight: '800' }}>
-            {form.docx_template_path || 'No DOCX source uploaded'}
-          </Text>
-        </View>
-        <ActionButton
-          label={uploadingDocx || upsert.isPending ? 'Uploading...' : 'Upload DOCX source'}
-          icon={<FileUp color={brand.blue} size={17} />}
-          secondary
-          disabled={uploadingDocx || upsert.isPending || !templateId}
-          onPress={() => void uploadDocxSource()}
-        />
-        {!templateId ? <Text style={{ color: brand.muted, fontSize: 11, fontWeight: '800' }}>Save the template first, then upload its DOCX source.</Text> : null}
-      </OperatorCard>
-
-      <OperatorCard>
         <Text style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>Merge tokens</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-          {mergeTokens.map((token) => (
-            <Pressable key={token} onPress={() => insertToken(token)} style={styles.tokenChip}>
-              <Text style={{ color: brand.blue, fontSize: 10, fontWeight: '900' }}>{token}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <TokenGroups tokens={mergeTokens} onInsert={insertToken} />
       </OperatorCard>
 
       <OperatorCard>
@@ -343,7 +334,7 @@ export function TemplateEditorScreen({ templateId }: { templateId?: string }) {
       </View>
       {!isNew ? <ActionButton label="Delete template" icon={<Trash2 color="#FFFFFF" size={17} />} danger disabled={remove.isPending} onPress={deleteTemplate} /> : null}
 
-      <PreviewModal html={previewHtml} missingTokens={missingTokens} onClose={() => setPreviewHtml('')} />
+      <PreviewModal html={previewHtml} htmlSource={previewSource} missingTokens={missingTokens} onClose={() => setPreviewHtml('')} />
     </OperatorScreen>
   );
 }
@@ -388,18 +379,83 @@ function ErrorBanner({ message }: { message: string }) {
   return <OperatorCard><Text selectable style={{ color: brand.red, fontSize: 13, lineHeight: 18, fontWeight: '800' }}>{message}</Text></OperatorCard>;
 }
 
-function PreviewModal({ html, missingTokens, onClose }: { html: string; missingTokens: string[]; onClose: () => void }) {
+function SourceMetadata({ template, fallbackPath }: { template?: AdminDocumentTemplate; fallbackPath?: string | null }) {
+  const sourcePath = template?.source_file_path ?? template?.docx_template_path ?? fallbackPath;
+  const filename = sourcePath ? sourcePath.split('/').pop() : null;
+  return (
+    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: brand.border, backgroundColor: '#FBFCFE', padding: 12, gap: 8 }}>
+      <MetaLine label="File" value={filename ?? 'No DOCX source uploaded'} />
+      <MetaLine label="Path" value={sourcePath ?? '—'} />
+      <MetaLine label="Uploaded" value={template?.source_uploaded_at ? formatDateTime(template.source_uploaded_at) : '—'} />
+      <MetaLine label="Uploader" value={template?.source_uploaded_by ?? '—'} />
+      <MetaLine label="MIME" value={template?.source_mime_type ?? '—'} />
+      <MetaLine label="Version" value={`v${template?.version ?? '—'}`} />
+    </View>
+  );
+}
+
+function MetaLine({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ gap: 2 }}>
+      <Text style={styles.label}>{label}</Text>
+      <Text selectable style={{ color: value === '—' ? brand.muted : brand.text, fontSize: 12, lineHeight: 17, fontWeight: '800' }}>{value}</Text>
+    </View>
+  );
+}
+
+function WarningList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <View style={styles.warningBox}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <AlertTriangle color={brand.orange} size={17} />
+        <Text style={{ color: brand.orange, fontSize: 13, fontWeight: '900' }}>{title}</Text>
+      </View>
+      {items.map((item) => <Text key={item} selectable style={{ color: brand.text, fontSize: 12, lineHeight: 17 }}>• {item}</Text>)}
+    </View>
+  );
+}
+
+function TokenGroups({ tokens, onInsert }: { tokens: string[]; onInsert: (token: string) => void }) {
+  const groups = groupTokens(tokens);
+  return (
+    <View style={{ gap: 12 }}>
+      {groups.map((group) => (
+        <View key={group.label} style={{ gap: 7 }}>
+          <Text style={styles.label}>{group.label}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+            {group.tokens.map((token) => (
+              <Pressable key={`${group.label}-${token}`} onPress={() => onInsert(tokenMarkup(token))} style={styles.tokenChip}>
+                <Text style={{ color: brand.blue, fontSize: 10, fontWeight: '900' }}>{token}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function RenderSourceChip({ source }: { source?: 'docx' | 'body_html' | null }) {
+  if (!source) return null;
+  const docx = source === 'docx';
+  return (
+    <View style={{ alignSelf: 'flex-start', borderRadius: 999, backgroundColor: docx ? brand.greenSoft : brand.blueSoft, paddingHorizontal: 10, paddingVertical: 6 }}>
+      <Text style={{ color: docx ? brand.green : brand.blue, fontSize: 10, fontWeight: '900' }}>
+        {docx ? 'Rendered from DOCX' : 'Rendered from HTML fallback'}
+      </Text>
+    </View>
+  );
+}
+
+function PreviewModal({ html, htmlSource, missingTokens, onClose }: { html: string; htmlSource?: 'docx' | 'body_html' | null; missingTokens: string[]; onClose: () => void }) {
   return (
     <Modal animationType="slide" transparent visible={Boolean(html)} onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,21,47,0.34)' }}>
         <Pressable accessibilityLabel="Close preview" onPress={onClose} style={{ position: 'absolute', inset: 0 }} />
         <View style={styles.previewSheet}>
           <Text selectable style={{ color: brand.text, fontSize: 18, fontWeight: '900' }}>Template preview</Text>
-          {missingTokens.length ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-              {missingTokens.map((token) => <View key={token} style={styles.missingChip}><Text style={{ color: brand.red, fontSize: 10, fontWeight: '900' }}>{token}</Text></View>)}
-            </View>
-          ) : null}
+          <RenderSourceChip source={htmlSource} />
+          {missingTokens.length ? <WarningList title="Missing tokens" items={missingTokens} /> : null}
           <View style={styles.previewFrame}>
             <HtmlViewer html={html} />
           </View>
@@ -433,15 +489,90 @@ const extractDocCount = (message: string) => {
   return match ? Number(match[1]) : null;
 };
 
+const tokenMarkup = (token: string) => token.startsWith('{{') ? token : `{{${token}}}`;
+const normalizeToken = (token: string) => token.replace(/^\{\{\s*/, '').replace(/\s*\}\}$/, '');
+const canonicalTokens = () => [
+  'customer.name',
+  'customer.email',
+  'customer.phone',
+  'customer.declared_items_block',
+  'job.job_number',
+  'job.bill_of_lading_number',
+  'job.origin_address',
+  'job.destination_address',
+  'job.arrival_window',
+  'job.scheduled_date',
+  'job.scheduled_date_long',
+  'job.crew_size',
+  'job.truck_size',
+  'job.hourly_rate',
+  'job.truck_fee',
+  'job.line_items_table',
+  'job.photo_room_rows',
+  'job.delivery_checklist',
+  'estimate.hours_grid',
+  'estimate.subtotal',
+  'estimate.total',
+  'estimate.total_range_including_packing',
+  'estimate.deposit_paid',
+  'estimate.deposit_amount',
+  'estimate.balance',
+  'estimate.packing_fee',
+  'estimate.packing_kit_price',
+  'estimate.minimum_hours',
+  'document.issued_date',
+  'document.updated_date',
+  'invoice.total',
+  'invoice.balance',
+  'invoice.amount',
+  'company.name',
+  'company.address',
+  'company.phone',
+  'company.website',
+  'date.today',
+  'signature.block',
+];
+
+const groupTokens = (tokens: string[]) => {
+  const unique = Array.from(new Set([...tokens, ...canonicalTokens()].map(normalizeToken).filter(Boolean)));
+  const groupFor = (label: string, predicate: (token: string) => boolean) => ({
+    label,
+    tokens: unique.filter(predicate).sort(),
+  });
+  return [
+    groupFor('customer.*', (token) => token.startsWith('customer.') && !isStructuralToken(token)),
+    groupFor('job.*', (token) => token.startsWith('job.') && !isStructuralToken(token)),
+    groupFor('estimate.*', (token) => token.startsWith('estimate.') && !isStructuralToken(token)),
+    groupFor('document.*', (token) => token.startsWith('document.')),
+    groupFor('company / invoice / date', (token) => /^(company|invoice|date)\./.test(token)),
+    groupFor('structural blocks', isStructuralToken),
+  ].filter((group) => group.tokens.length);
+};
+
+const isStructuralToken = (token: string) => [
+  'job.line_items_table',
+  'job.photo_room_rows',
+  'job.delivery_checklist',
+  'customer.declared_items_block',
+  'estimate.hours_grid',
+  'signature.block',
+].includes(token);
+
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
+
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 const titleCase = (value: string) => value.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-const defaultMergeTokens = () => ['{{customer.name}}', '{{job.job_number}}', '{{job.origin_address}}', '{{job.destination_address}}', '{{date.today}}', '{{signature.block}}'];
+const defaultMergeTokens = canonicalTokens;
 
 const styles = {
   label: { color: brand.text, fontSize: 11, fontWeight: '900' as const, textTransform: 'uppercase' as const },
   input: { minHeight: 46, borderWidth: 1, borderColor: brand.border, borderRadius: 12, backgroundColor: brand.surface, paddingHorizontal: 12, color: brand.text, fontSize: 13 },
   htmlInput: { minHeight: 280, borderWidth: 1, borderColor: brand.border, borderRadius: 12, backgroundColor: '#FBFCFE', padding: 12, color: brand.text, fontSize: 12, lineHeight: 18, fontFamily: 'Courier', textAlignVertical: 'top' as const },
   tokenChip: { borderRadius: 999, borderWidth: 1, borderColor: brand.blue, backgroundColor: brand.blueSoft, paddingHorizontal: 9, paddingVertical: 7 },
+  warningBox: { borderRadius: 13, borderWidth: 1, borderColor: brand.orange, backgroundColor: brand.orangeSoft, padding: 12, gap: 7 },
   previewSheet: { width: '100%' as const, maxWidth: 720, maxHeight: '88%' as const, alignSelf: 'center' as const, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: brand.border, backgroundColor: brand.surface, padding: 14, gap: 10 },
   previewFrame: { height: 520, minHeight: 320, borderRadius: 16, borderWidth: 1, borderColor: brand.border, overflow: 'hidden' as const, backgroundColor: '#FFFFFF' },
   missingChip: { borderRadius: 999, backgroundColor: brand.redSoft, paddingHorizontal: 9, paddingVertical: 5 },

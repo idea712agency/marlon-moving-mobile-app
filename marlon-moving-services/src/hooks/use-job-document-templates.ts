@@ -28,8 +28,9 @@ export type JobDocumentTemplate = {
 };
 
 type TemplateListResponse = JobDocumentTemplate[] | { templates?: JobDocumentTemplate[]; data?: JobDocumentTemplate[] };
-type PreviewResponse = { html: string; version?: number | null };
-type GenerateResponse = { document_id: string; storage_path: string; version: number };
+type RenderSource = 'docx' | 'body_html';
+type PreviewResponse = { html: string; version?: number | null; html_source?: RenderSource; missing_tokens?: string[] };
+type GenerateResponse = { document_id: string; storage_path: string; version: number; html_source?: RenderSource };
 type PackageResponse = {
   generated: { template_slug?: string; document_id?: string; file_url?: string; status?: string }[];
   skipped_locked: { template_slug?: string; document_id?: string; status?: string }[];
