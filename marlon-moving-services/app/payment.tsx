@@ -34,7 +34,7 @@ export default function PaymentScreen() {
   const [paymentDate, setPaymentDate] = useState(today());
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
-  const [proof, setProof] = useState<{ name: string; path: string } | null>(null);
+  const [proof, setProof] = useState<{ name: string; path: string; publicUrl: string } | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [localError, setLocalError] = useState('');
   const [success, setSuccess] = useState('');
@@ -74,7 +74,7 @@ export default function PaymentScreen() {
           payment_date: paymentDate.trim(),
           reference_number: reference.trim() || undefined,
           notes: notes.trim() || undefined,
-          proof_file_path: proof?.path,
+          proof_file_path: proof?.publicUrl,
         },
       });
       if (result?.ok === false) throw new Error(result.error || result.message || 'Payment submission failed.');
@@ -113,7 +113,8 @@ export default function PaymentScreen() {
         upsert: false,
       });
       if (error) throw error;
-      setProof({ name: asset.name, path });
+      const publicUrl = supabase.storage.from('media').getPublicUrl(path).data.publicUrl;
+      setProof({ name: asset.name, path, publicUrl });
     } catch (error) {
       setLocalError(errorMessage(error));
     } finally {
