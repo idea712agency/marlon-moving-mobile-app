@@ -11,7 +11,6 @@ import {
   Users,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -37,14 +36,50 @@ const addDays = (date: Date, amount: number) => {
   return next;
 };
 
+const scheduleText = {
+  title: 'Schedule',
+  subtitle: 'View and manage all scheduled moves.',
+  addMove: 'Add move',
+  today: 'Today',
+  previousWeek: 'Previous week',
+  nextWeek: 'Next week',
+  filters: {
+    statuses: 'All statuses',
+    crews: 'All crews',
+    locations: 'All locations',
+    more: 'Filters',
+  },
+  stats: {
+    total: 'Total Moves',
+    inProgress: 'In Progress',
+    completed: 'Completed',
+    upcoming: 'Upcoming',
+  },
+  noMoves: 'No scheduled moves.',
+  loading: 'Loading schedule...',
+  loadError: 'Schedule could not be loaded.',
+  retry: 'Try again',
+  status: {
+    inProgress: 'In Progress',
+    completed: 'Completed',
+    upcoming: 'Upcoming',
+  },
+  quickActions: {
+    title: 'Quick actions',
+    calendar: 'Calendar view',
+    dispatch: 'Dispatch board',
+    crew: 'Crew availability',
+    export: 'Export schedule',
+  },
+};
+
 export default function ScheduleScreen() {
-  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const today = useMemo(() => new Date(), []);
   const todayKey = toLocalDate(today);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState(todayKey);
-  const locale = i18n.language.startsWith('es') ? 'es-US' : 'en-US';
+  const locale = 'en-US';
 
   const days = useMemo<ScheduleDay[]>(() => {
     const start = addDays(today, weekOffset * 7);
@@ -68,9 +103,9 @@ export default function ScheduleScreen() {
     day: 'numeric',
   });
   const statusLabels = {
-    inProgress: t('schedule.status.inProgress'),
-    completed: t('schedule.status.completed'),
-    upcoming: t('schedule.status.upcoming'),
+    inProgress: scheduleText.status.inProgress,
+    completed: scheduleText.status.completed,
+    upcoming: scheduleText.status.upcoming,
   };
 
   const changeWeek = (amount: number) => {
@@ -89,14 +124,14 @@ export default function ScheduleScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
           <View style={{ flex: 1, gap: 5 }}>
             <Text selectable style={{ color: brand.text, fontSize: 28, lineHeight: 33, fontWeight: '900', letterSpacing: -0.7 }}>
-              {t('schedule.title')}
+              {scheduleText.title}
             </Text>
             <Text selectable style={{ color: brand.muted, fontSize: 13, lineHeight: 18 }}>
-              {t('schedule.subtitle')}
+              {scheduleText.subtitle}
             </Text>
           </View>
           <Pressable
-            accessibilityLabel={t('schedule.addMove')}
+            accessibilityLabel={scheduleText.addMove}
             accessibilityRole="button"
             onPress={() => router.push('/jobs/new')}
             style={{
@@ -112,7 +147,7 @@ export default function ScheduleScreen() {
             }}>
             <Plus color="#FFFFFF" size={15} strokeWidth={2.7} />
             <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '900' }}>
-              {t('schedule.addMove')}
+              {scheduleText.addMove}
             </Text>
           </Pressable>
         </View>
@@ -121,32 +156,32 @@ export default function ScheduleScreen() {
           days={days}
           locale={locale}
           selectedDate={selectedDate}
-          todayLabel={t('schedule.today')}
-          previousLabel={t('schedule.previousWeek')}
-          nextLabel={t('schedule.nextWeek')}
+          todayLabel={scheduleText.today}
+          previousLabel={scheduleText.previousWeek}
+          nextLabel={scheduleText.nextWeek}
           onPrevious={() => changeWeek(-1)}
           onNext={() => changeWeek(1)}
           onSelect={setSelectedDate}
         />
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          <FilterPill label={t('schedule.filters.statuses')} Icon={CheckCircle2} />
-          <FilterPill label={t('schedule.filters.crews')} Icon={Users} />
-          <FilterPill label={t('schedule.filters.locations')} Icon={MapPin} />
-          <FilterPill label={t('schedule.filters.more')} Icon={Filter} />
+          <FilterPill label={scheduleText.filters.statuses} Icon={CheckCircle2} />
+          <FilterPill label={scheduleText.filters.crews} Icon={Users} />
+          <FilterPill label={scheduleText.filters.locations} Icon={MapPin} />
+          <FilterPill label={scheduleText.filters.more} Icon={Filter} />
         </View>
 
         <View style={{ gap: 9 }}>
           <View style={{ flexDirection: 'row', gap: 9 }}>
             <StatCard
-              label={t('schedule.stats.total')}
+              label={scheduleText.stats.total}
               value={selectedJobs.length}
               color={brand.blue}
               backgroundColor={brand.blueSoft}
               Icon={CalendarDays}
             />
             <StatCard
-              label={t('schedule.stats.inProgress')}
+              label={scheduleText.stats.inProgress}
               value={selectedJobs.filter((job) => job.status === 'in_progress').length}
               color={brand.orange}
               backgroundColor={brand.orangeSoft}
@@ -155,14 +190,14 @@ export default function ScheduleScreen() {
           </View>
           <View style={{ flexDirection: 'row', gap: 9 }}>
             <StatCard
-              label={t('schedule.stats.completed')}
+              label={scheduleText.stats.completed}
               value={selectedJobs.filter((job) => job.status === 'completed').length}
               color={brand.green}
               backgroundColor={brand.greenSoft}
               Icon={CheckCircle2}
             />
             <StatCard
-              label={t('schedule.stats.upcoming')}
+              label={scheduleText.stats.upcoming}
               value={upcomingJobs.length}
               color={brand.purple}
               backgroundColor={brand.purpleSoft}
@@ -174,28 +209,28 @@ export default function ScheduleScreen() {
         {scheduleQuery.isLoading ? (
           <View style={{ minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 10 }}>
             <ActivityIndicator color={brand.blue} size="large" />
-            <Text style={{ color: brand.muted, fontSize: 12, fontWeight: '800' }}>{t('schedule.loading')}</Text>
+            <Text style={{ color: brand.muted, fontSize: 12, fontWeight: '800' }}>{scheduleText.loading}</Text>
           </View>
         ) : scheduleQuery.error ? (
           <View style={{ borderRadius: 16, padding: 16, gap: 10, backgroundColor: brand.redSoft }}>
-            <Text selectable style={{ color: brand.red, fontSize: 13, fontWeight: '900' }}>{t('schedule.loadError')}</Text>
+            <Text selectable style={{ color: brand.red, fontSize: 13, fontWeight: '900' }}>{scheduleText.loadError}</Text>
             <Pressable accessibilityRole="button" onPress={() => void scheduleQuery.refetch()}>
-              <Text style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>{t('schedule.retry')}</Text>
+              <Text style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>{scheduleText.retry}</Text>
             </Pressable>
           </View>
         ) : (
           <>
             <View style={{ gap: 10 }}>
               <Text selectable style={{ color: brand.text, fontSize: 17, fontWeight: '900' }}>
-                {t(selectedDate === todayKey ? 'schedule.todaySection' : 'schedule.selectedSection', { date: selectedDateLabel })}
+                {selectedDate === todayKey ? `Today - ${selectedDateLabel}` : `Schedule - ${selectedDateLabel}`}
               </Text>
               {selectedJobs.length ? (
                 selectedJobs.map((job) => (
                   <JobRow
                     key={job.id}
                     job={job}
-                    moversLabel={t('schedule.movers', { count: job.crew_size ?? 0 })}
-                    fallbackLabel={t('schedule.jobFallback', { number: job.job_number })}
+                    moversLabel={`${job.crew_size ?? 0} Movers`}
+                    fallbackLabel={`Move ${job.job_number}`}
                     statusLabels={statusLabels}
                     onPress={() => router.push(`/moves/${job.id}`)}
                   />
@@ -211,7 +246,7 @@ export default function ScheduleScreen() {
                     justifyContent: 'center',
                     backgroundColor: brand.surface,
                   }}>
-                  <Text selectable style={{ color: brand.muted, fontSize: 13, fontWeight: '800' }}>{t('schedule.noMoves')}</Text>
+                  <Text selectable style={{ color: brand.muted, fontSize: 13, fontWeight: '800' }}>{scheduleText.noMoves}</Text>
                 </View>
               )}
             </View>
@@ -219,11 +254,11 @@ export default function ScheduleScreen() {
             <View style={{ gap: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Text selectable style={{ flex: 1, color: brand.text, fontSize: 17, fontWeight: '900' }}>
-                  {t('schedule.upcomingSection')}
+                  Upcoming - Next 7 days
                 </Text>
                 <Pressable accessibilityRole="button">
                   <Text style={{ color: brand.blue, fontSize: 11, fontWeight: '900' }}>
-                    {t('schedule.viewAll', { count: upcomingJobs.length })}
+                    View all ({upcomingJobs.length})
                   </Text>
                 </Pressable>
               </View>
@@ -235,14 +270,14 @@ export default function ScheduleScreen() {
                   dateLabel={fromLocalDate(job.scheduled_date)
                     .toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })
                     .replaceAll('.', '')}
-                  moversLabel={t('schedule.movers', { count: job.crew_size ?? 0 })}
-                  fallbackLabel={t('schedule.jobFallback', { number: job.job_number })}
+                  moversLabel={`${job.crew_size ?? 0} Movers`}
+                  fallbackLabel={`Move ${job.job_number}`}
                   statusLabels={statusLabels}
                   onPress={() => router.push(`/moves/${job.id}`)}
                 />
               ))}
               {!upcomingJobs.length ? (
-                <Text selectable style={{ color: brand.muted, fontSize: 12, fontWeight: '700' }}>{t('schedule.noMoves')}</Text>
+                <Text selectable style={{ color: brand.muted, fontSize: 12, fontWeight: '700' }}>{scheduleText.noMoves}</Text>
               ) : null}
             </View>
           </>
@@ -258,12 +293,12 @@ export default function ScheduleScreen() {
             gap: 12,
             backgroundColor: brand.surface,
           }}>
-          <Text selectable style={{ color: brand.text, fontSize: 15, fontWeight: '900' }}>{t('schedule.quickActions.title')}</Text>
+          <Text selectable style={{ color: brand.text, fontSize: 15, fontWeight: '900' }}>{scheduleText.quickActions.title}</Text>
           <View style={{ flexDirection: 'row', gap: 6 }}>
-            <QuickAction label={t('schedule.quickActions.calendar')} Icon={CalendarDays} />
-            <QuickAction label={t('schedule.quickActions.dispatch')} Icon={Truck} />
-            <QuickAction label={t('schedule.quickActions.crew')} Icon={Users} />
-            <QuickAction label={t('schedule.quickActions.export')} Icon={Download} />
+            <QuickAction label={scheduleText.quickActions.calendar} Icon={CalendarDays} />
+            <QuickAction label={scheduleText.quickActions.dispatch} Icon={Truck} />
+            <QuickAction label={scheduleText.quickActions.crew} Icon={Users} />
+            <QuickAction label={scheduleText.quickActions.export} Icon={Download} />
           </View>
         </View>
       </ScrollView>

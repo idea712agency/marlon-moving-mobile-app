@@ -35,12 +35,15 @@ export default function RootLayout() {
             <Stack.Screen name="app/estimate" options={{ headerShown: false }} />
             <Stack.Screen name="app/messages" options={{ headerShown: false }} />
             <Stack.Screen name="app/documents" options={{ headerShown: false }} />
+            <Stack.Screen name="app/documents/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="app/moves/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="app/account" options={{ headerShown: false }} />
             <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="(admin)" options={{ headerShown: false }} />
             <Stack.Screen name="estimate" options={{ title: 'Free Estimate' }} />
             <Stack.Screen name="jobs/new" options={{ title: 'New Move' }} />
+            <Stack.Screen name="moves/[id]" options={{ title: 'Move details', headerTitle: 'Move details' }} />
             <Stack.Screen name="customers/new" options={{ title: 'Add Customer' }} />
             <Stack.Screen name="dispatch/index" options={{ title: 'Dispatch Crew' }} />
             <Stack.Screen name="invoices/index" options={{ title: 'Invoices' }} />

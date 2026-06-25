@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   CalendarDays,
@@ -18,9 +18,11 @@ import {
   Users,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
+import { DocumentViewer } from '@/components/documents/document-viewer';
 import { StatusPill } from '@/components/operator/StatusPill';
 import { brand } from '@/constants/operator-brand';
 import {
@@ -33,8 +35,14 @@ import {
   useOperatorJob,
   useOperatorJobActions,
 } from '@/hooks/use-operator-job';
-import type { ManualPaymentSubmission } from '@/lib/data';
-import { money, shortDate, shortTime } from '@/lib/data';
+import {
+  type JobDocumentTemplate,
+  useJobDocumentTemplateActions,
+  useJobDocumentTemplates,
+} from '@/hooks/use-job-document-templates';
+import type { DocumentDetail, ManualPaymentSubmission } from '@/lib/data';
+import { errorMessage, money, shortDate, shortTime } from '@/lib/data';
+import { invokeSupabaseFunction } from '@/lib/supabase-functions';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/types/supabase';
 
@@ -102,7 +110,7 @@ export default function MoveDetailsScreen() {
       <CrewCard data={data} actions={actions} />
       <ChecklistCard checklist={data.checklist} actions={actions} />
       <InventoryCard inventory={data.inventory} />
-      <DocumentsCard documents={data.documents} />
+      <DocumentsCard job={job} documents={data.documents} />
       <InvoiceCard data={data} actions={actions} />
       <ManualPaymentsCard payments={data.manual_payments ?? []} actions={actions} />
       <MessagesCard messages={data.messages} actions={actions} />
@@ -280,26 +288,322 @@ function InventoryCard({ inventory }: { inventory: OperatorInventoryItem[] }) {
   );
 }
 
-function DocumentsCard({ documents }: { documents: OperatorDocument[] }) {
+function DocumentsCard({ job, documents }: { job: OperatorJob; documents: OperatorDocument[] }) {
+  const jobId = job.id;
+  const linkedCustomer = Boolean((job as OperatorJob & { customer_user_id?: string | null }).customer_user_id);
+  const queryClient = useQueryClient();
+  const templates = useJobDocumentTemplates(jobId);
+  const actions = useJobDocumentTemplateActions(jobId);
+  const [preview, setPreview] = useState<{ title: string; version?: number | null; html: string } | null>(null);
+  const [viewer, setViewer] = useState<{ title: string; url: string; htmlPreviewUrl?: string | null; isPdf?: boolean | null; isHtmlSnapshot?: boolean | null; mimeType?: string | null } | null>(null);
+  const [adminHtmlPreviewOpen, setAdminHtmlPreviewOpen] = useState(false);
+  const [viewingDocumentId, setViewingDocumentId] = useState('');
+  const [sendingDocumentId, setSendingDocumentId] = useState('');
+  const grouped = useMemo(() => groupTemplates(templates.data ?? []), [templates.data]);
+  const sendDocument = useMutation({
+    mutationFn: async (documentId: string) =>
+      invokeSupabaseFunction<{ status: 'sent'; document: OperatorDocument }>('admin-send-document-to-customer', { body: { document_id: documentId } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['operator-job', jobId] });
+      await queryClient.invalidateQueries({ queryKey: ['job-document-templates', jobId] });
+      await queryClient.invalidateQueries({ queryKey: ['operator-moves'] });
+      await queryClient.invalidateQueries({ queryKey: ['operator-schedule'] });
+    },
+  });
+
+  const previewTemplate = async (template: JobDocumentTemplate) => {
+    try {
+      const result = await actions.previewTemplate.mutateAsync(template.id);
+      setPreview({ title: templateTitle(template), version: result.version ?? template.version, html: result.html });
+    } catch (error) {
+      Alert.alert('Preview unavailable', errorMessage(error));
+    }
+  };
+
+  const generateTemplate = async (template: JobDocumentTemplate) => {
+    if (template.status === 'signed' || template.locked_at) {
+      Alert.alert('Document locked', 'This document is signed and locked. Generate a new draft? The signed copy stays in the record.');
+      return;
+    }
+    try {
+      await actions.generateDocument.mutateAsync({ templateId: template.id, replace: true });
+      Alert.alert(template.status === 'draft' ? 'Document regenerated' : 'Document generated');
+    } catch (error) {
+      if (isLockedDocumentError(error)) {
+        Alert.alert('Document locked', 'This document is signed and locked. Generate a new draft? The signed copy stays in the record.');
+        return;
+      }
+      Alert.alert('Generation failed', errorMessage(error));
+    }
+  };
+
+  const generatePackage = async () => {
+    try {
+      const result = await actions.generatePackage.mutateAsync();
+      Alert.alert('Document package complete', `Generated ${result.generated.length} · Skipped ${result.skipped_locked.length} locked`);
+    } catch (error) {
+      Alert.alert('Package failed', errorMessage(error));
+    }
+  };
+
+  const viewGeneratedDocument = async (documentId: string | null | undefined, title: string) => {
+    if (!documentId) return;
+    setViewingDocumentId(documentId);
+    try {
+      const detail = await invokeSupabaseFunction<DocumentDetail>('mobile-get-document-detail', { body: { document_id: documentId } });
+      if (!detail.document) throw new Error('Document is not available.');
+      const path = detail.document.file_path;
+      const url = detail.signed_url ?? await signedMediaUrl(path);
+      setViewer({
+        title,
+        url,
+        htmlPreviewUrl: detail.html_preview_url ?? (detail.document as OperatorDocument & { html_preview_url?: string | null }).html_preview_url,
+        isPdf: detail.is_pdf ?? detail.document.mime_type === 'application/pdf',
+        isHtmlSnapshot: detail.is_html_snapshot,
+        mimeType: detail.document.mime_type,
+      });
+    } catch (error) {
+      Alert.alert('Document unavailable', errorMessage(error));
+    } finally {
+      setViewingDocumentId('');
+    }
+  };
+
+  const sendGeneratedDocument = async (document: OperatorDocument) => {
+    const locked = isAdminDocumentLocked(document);
+    if (locked) return;
+    setSendingDocumentId(document.id);
+    try {
+      await sendDocument.mutateAsync(document.id);
+      Alert.alert('Document sent');
+    } catch (error) {
+      const message = errorMessage(error);
+      Alert.alert(
+        'Send failed',
+        message.toLowerCase().includes('no linked customer account')
+          ? 'This job has no linked customer account — link a customer profile first'
+          : message,
+      );
+    } finally {
+      setSendingDocumentId('');
+    }
+  };
+
+  const busy = actions.generateDocument.isPending || actions.generatePackage.isPending;
   return (
     <OperatorCard>
       <SectionTitle icon={<FileText color={brand.blue} size={20} />} title={`Documents (${documents.length})`} />
-      {!documents.length ? <EmptyPanel title="No job documents" body="Contracts, receipts, photos, and signed paperwork will appear here." /> : null}
+      <PrimaryAction
+        label={actions.generatePackage.isPending ? 'Generating package...' : 'Generate document package'}
+        disabled={actions.generatePackage.isPending}
+        icon={<FileText color="#FFFFFF" size={16} />}
+        onPress={() => void generatePackage()}
+      />
+      {templates.isLoading ? <ActivityIndicator color={brand.blue} /> : null}
+      {templates.error ? <EmptyPanel title="Templates unavailable" body={errorMessage(templates.error)} /> : null}
+      {!templates.isLoading && !templates.error && !templates.data?.length ? (
+        <EmptyPanel title="No templates available" body="Document templates will appear here once they are active." />
+      ) : null}
+      {grouped.map((group) => (
+        <View key={group.label} style={styles.templateGroup}>
+          <View style={[styles.templateGroupHeader, { backgroundColor: group.bg || brand.blueSoft }]}>
+            <Text selectable style={{ color: group.color || brand.blue, fontSize: 12, fontWeight: '900' }}>{group.label}</Text>
+          </View>
+          {group.templates.map((template) => (
+            <TemplateRow
+              key={template.id}
+              template={template}
+              busy={busy || viewingDocumentId === template.document_id}
+              onPreview={() => void previewTemplate(template)}
+              onGenerate={() => void generateTemplate(template)}
+              onView={() => void viewGeneratedDocument(template.document_id, templateTitle(template))}
+            />
+          ))}
+        </View>
+      ))}
+      {documents.length ? <Text style={styles.label}>Generated documents</Text> : null}
+      {!documents.length ? <EmptyPanel title="No job documents" body="Generated drafts, signed forms, and uploaded paperwork will appear here." /> : null}
       {documents.slice(0, 8).map((document) => {
         const isImage = document.mime_type?.startsWith('image/');
-        const url = publicMediaUrl(document.file_path);
+        const locked = isAdminDocumentLocked(document);
+        const sentAt = adminDocumentSentAt(document);
+        const sent = Boolean(sentAt);
+        const sendDisabled = sendDocument.isPending || sendingDocumentId === document.id || !linkedCustomer || sent || locked;
         return (
-          <Pressable key={document.id} onPress={() => void WebBrowser.openBrowserAsync(url)} style={styles.listRow}>
-            {isImage ? <Image source={url} style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: brand.blueSoft }} /> : <View style={styles.rowIcon}><FileText color={brand.blue} size={18} /></View>}
+          <View key={document.id} style={styles.listRow}>
+            {isImage ? <Image source={publicMediaUrl(document.file_path)} style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: brand.blueSoft }} /> : <View style={styles.rowIcon}><FileText color={brand.blue} size={18} /></View>}
             <View style={{ flex: 1 }}>
               <Text selectable numberOfLines={1} style={{ color: brand.text, fontWeight: '900' }}>{document.name}</Text>
-              <Text style={{ color: brand.muted, fontSize: 11 }}>{titleCase(String(document.document_type))} · {document.is_signed ? 'Signed' : 'Unsigned'}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: brand.muted, fontSize: 11 }}>{documentStatus(document)}</Text>
+                {sentAt ? <SmallStatusChip label={`Sent ${relativeTime(sentAt)}`} color={brand.blue} bg={brand.blueSoft} /> : null}
+                {locked ? <SmallStatusChip label={signedDocumentLabel(document)} color={brand.green} bg={brand.greenSoft} /> : null}
+              </View>
             </View>
-          </Pressable>
+            <View style={{ gap: 7, minWidth: 76 }}>
+              <Pressable disabled={viewingDocumentId === document.id} onPress={() => void viewGeneratedDocument(document.id, document.name)} style={styles.documentMiniButton}>
+                <Text style={styles.documentMiniText}>View</Text>
+              </Pressable>
+              {!locked ? (
+                <Pressable
+                  disabled={sendDisabled}
+                  onPress={() => void sendGeneratedDocument(document)}
+                  style={[styles.documentMiniButton, { borderColor: sent ? brand.blue : brand.green, backgroundColor: sent ? brand.blueSoft : brand.greenSoft, opacity: sendDisabled ? 0.55 : 1 }]}>
+                  <Text style={[styles.documentMiniText, { color: sent ? brand.blue : brand.green }]}>{sent ? 'Sent' : 'Send'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         );
       })}
       <Link href="/documents" asChild><Pressable style={styles.secondaryButton}><Text style={styles.secondaryText}>Open documents library</Text></Pressable></Link>
+      <HtmlPreviewSheet
+        title={preview?.title ?? ''}
+        subtitle={preview?.version ? `Template v${preview.version}` : 'Template preview'}
+        html={preview?.html ?? ''}
+        banner="Preview only - not saved"
+        visible={Boolean(preview)}
+        footer={null}
+        onClose={() => setPreview(null)}
+      />
+      <HtmlPreviewSheet
+        title={viewer?.title ?? ''}
+        subtitle="Generated document"
+        uri={viewer?.url}
+        htmlPreviewUrl={viewer?.htmlPreviewUrl}
+        isPdf={viewer?.isPdf}
+        isHtmlSnapshot={viewer?.isHtmlSnapshot}
+        mimeType={viewer?.mimeType}
+        visible={Boolean(viewer)}
+        banner={null}
+        footer={null}
+        onOpenHtml={() => setAdminHtmlPreviewOpen(true)}
+        onClose={() => setViewer(null)}
+      />
+      <HtmlPreviewSheet
+        title="HTML snapshot"
+        subtitle={viewer?.title ?? 'Generated document'}
+        uri={viewer?.htmlPreviewUrl ?? undefined}
+        visible={adminHtmlPreviewOpen}
+        banner={null}
+        footer={null}
+        onClose={() => setAdminHtmlPreviewOpen(false)}
+      />
     </OperatorCard>
+  );
+}
+
+function TemplateRow({
+  template,
+  busy,
+  onPreview,
+  onGenerate,
+  onView,
+}: {
+  template: JobDocumentTemplate;
+  busy: boolean;
+  onPreview: () => void;
+  onGenerate: () => void;
+  onView: () => void;
+}) {
+  const signed = template.status === 'signed' || Boolean(template.locked_at);
+  const draft = template.status === 'draft';
+  const hasDocument = Boolean(template.document_id);
+  const generateLabel = signed ? 'Signed' : draft ? 'Regenerate' : 'Generate';
+  return (
+    <View style={styles.templateRow}>
+      <View style={{ flex: 1, gap: 5 }}>
+        <Text selectable style={{ color: brand.text, fontSize: 14, fontWeight: '900' }}>{templateTitle(template)}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          <StatusChip label={templateStatusLabel(template)} status={template.status} />
+          {template.signature_required ? <Chip label="Signature required" /> : null}
+        </View>
+      </View>
+      <View style={{ width: '100%', flexDirection: 'row', gap: 8 }}>
+        <Pressable disabled={busy} onPress={onPreview} style={styles.templateSecondaryButton}>
+          <Text style={styles.templateSecondaryText}>Preview</Text>
+        </Pressable>
+        {hasDocument ? (
+          <Pressable disabled={busy} onPress={onView} style={styles.templateSecondaryButton}>
+            <Text style={styles.templateSecondaryText}>View</Text>
+          </Pressable>
+        ) : null}
+        <Pressable disabled={busy || signed} onPress={onGenerate} style={[styles.templatePrimaryButton, { opacity: busy || signed ? 0.55 : 1 }]}>
+          <Text style={styles.templatePrimaryText}>{generateLabel}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function StatusChip({ label, status }: { label: string; status: JobDocumentTemplate['status'] }) {
+  const color = status === 'signed' ? brand.green : status === 'draft' ? brand.orange : brand.muted;
+  const backgroundColor = status === 'signed' ? brand.greenSoft : status === 'draft' ? brand.orangeSoft : brand.bg;
+  return <View style={{ borderRadius: 999, backgroundColor, paddingHorizontal: 9, paddingVertical: 5 }}><Text style={{ color, fontSize: 10, fontWeight: '900' }}>{label}</Text></View>;
+}
+
+function SmallStatusChip({ label, color, bg }: { label: string; color: string; bg: string }) {
+  return <View style={{ borderRadius: 999, backgroundColor: bg, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ color, fontSize: 9, fontWeight: '900' }}>{label}</Text></View>;
+}
+
+function HtmlPreviewSheet({
+  title,
+  subtitle,
+  html,
+  uri,
+  htmlPreviewUrl,
+  isPdf,
+  isHtmlSnapshot,
+  mimeType,
+  banner,
+  footer,
+  visible,
+  onOpenHtml,
+  onClose,
+}: {
+  title: string;
+  subtitle: string;
+  html?: string;
+  uri?: string;
+  htmlPreviewUrl?: string | null;
+  isPdf?: boolean | null;
+  isHtmlSnapshot?: boolean | null;
+  mimeType?: string | null;
+  banner: string | null;
+  footer: string | null;
+  visible: boolean;
+  onOpenHtml?: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,21,47,0.34)' }}>
+        <Pressable accessibilityLabel="Close preview" onPress={onClose} style={{ position: 'absolute', inset: 0 }} />
+        <View style={styles.previewSheet}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <Text selectable numberOfLines={1} style={{ color: brand.text, fontSize: 18, fontWeight: '900' }}>{title}</Text>
+              <Text selectable style={{ color: brand.muted, fontSize: 12, fontWeight: '800' }}>{subtitle}</Text>
+            </View>
+            <IconButton label="Close" icon={<Circle color={brand.text} size={18} />} onPress={onClose} />
+          </View>
+          {banner ? <View style={styles.previewBanner}><Text style={{ color: brand.blue, fontSize: 12, fontWeight: '900' }}>{banner}</Text></View> : null}
+          {html ? (
+            <View style={styles.webViewFrame}>
+              <WebView source={{ html }} javaScriptEnabled={false} originWhitelist={['*']} style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
+            </View>
+          ) : (
+            <DocumentViewer url={uri ?? null} isPdf={isPdf} isHtmlSnapshot={isHtmlSnapshot} mimeType={mimeType} />
+          )}
+          {htmlPreviewUrl && onOpenHtml ? (
+            <Pressable onPress={onOpenHtml} style={styles.templateSecondaryButton}>
+              <Text style={styles.templateSecondaryText}>View HTML snapshot</Text>
+            </Pressable>
+          ) : null}
+          {footer ? <Text selectable style={{ color: brand.muted, fontSize: 12, textAlign: 'center', fontWeight: '800' }}>{footer}</Text> : null}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -540,7 +844,84 @@ const numberOrNull = (value: string) => {
   return Number.isFinite(parsed) && value.trim() ? parsed : null;
 };
 
+const groupTemplates = (templates: JobDocumentTemplate[]) => {
+  const map = new Map<string, { label: string; color?: string | null; bg?: string | null; templates: JobDocumentTemplate[] }>();
+  templates.forEach((template) => {
+    const category = template.category;
+    const label = category?.label || 'Uncategorized';
+    const current = map.get(label) ?? { label, color: category?.color, bg: category?.bg, templates: [] };
+    current.templates.push(template);
+    map.set(label, current);
+  });
+  return Array.from(map.values());
+};
+
+const templateTitle = (template: JobDocumentTemplate) =>
+  template.label || template.template_name || titleCase(template.slug);
+
+const templateStatusLabel = (template: JobDocumentTemplate) => {
+  const version = template.generated_from_version ?? template.version;
+  if (template.status === 'signed' || template.locked_at) return `Signed · v${version}`;
+  if (template.status === 'draft') return `Draft · v${version}`;
+  return 'Not generated';
+};
+
+const documentStatus = (document: OperatorDocument) => {
+  const record = document as OperatorDocument & {
+    is_generated?: boolean | null;
+    is_signed?: boolean | null;
+    locked_at?: string | null;
+    generated_from_version?: number | null;
+  };
+  if (record.locked_at || record.is_signed) return `Signed${record.generated_from_version ? ` · v${record.generated_from_version}` : ''}`;
+  if (record.is_generated) return `Draft${record.generated_from_version ? ` · v${record.generated_from_version}` : ''}`;
+  return document.mime_type || 'Document';
+};
+
+const isAdminDocumentLocked = (document: OperatorDocument) => {
+  const record = document as OperatorDocument & { locked_at?: string | null; is_signed?: boolean | null };
+  return Boolean(record.locked_at || record.is_signed);
+};
+
+const isAdminDocumentSent = (document: OperatorDocument) => {
+  return Boolean(adminDocumentSentAt(document));
+};
+
+const adminDocumentSentAt = (document: OperatorDocument) => {
+  const record = document as OperatorDocument & { sent_to_customer_at?: string | null };
+  return record.sent_to_customer_at ?? null;
+};
+
+const signedDocumentLabel = (document: OperatorDocument) => {
+  const record = document as OperatorDocument & { generated_from_version?: number | null };
+  return `Signed${record.generated_from_version ? ` · v${record.generated_from_version}` : ''}`;
+};
+
+const relativeTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const seconds = Math.max(1, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+};
+
+const isLockedDocumentError = (error: unknown) => {
+  const message = errorMessage(error).toLowerCase();
+  return message.includes('409') || message.includes('document_locked') || message.includes('locked');
+};
+
 const publicMediaUrl = (path: string) => path.startsWith('http') ? path : supabase.storage.from('media').getPublicUrl(path).data.publicUrl;
+const signedMediaUrl = async (path: string) => {
+  if (path.startsWith('http')) return path;
+  const { data, error } = await supabase.storage.from('media').createSignedUrl(path, 60 * 30);
+  if (!error && data?.signedUrl) return data.signedUrl;
+  return publicMediaUrl(path);
+};
 const titleCase = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 const styles = {
@@ -560,6 +941,18 @@ const styles = {
   paymentReviewRow: { minHeight: 64, borderRadius: 13, borderWidth: 1, borderColor: brand.border, padding: 10, flexDirection: 'row' as const, alignItems: 'flex-start' as const, flexWrap: 'wrap' as const, gap: 10 },
   reviewButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const },
   rowIcon: { width: 42, height: 42, borderRadius: 10, backgroundColor: brand.blueSoft, alignItems: 'center' as const, justifyContent: 'center' as const },
+  templateGroup: { gap: 8, borderTopWidth: 1, borderTopColor: brand.border, paddingTop: 10 },
+  templateGroupHeader: { alignSelf: 'flex-start' as const, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  templateRow: { minHeight: 78, borderRadius: 13, borderWidth: 1, borderColor: brand.border, padding: 10, gap: 10 },
+  templatePrimaryButton: { flex: 1, minHeight: 40, borderRadius: 11, backgroundColor: brand.blue, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 9 },
+  templatePrimaryText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' as const },
+  templateSecondaryButton: { flex: 1, minHeight: 40, borderRadius: 11, borderWidth: 1, borderColor: brand.blue, backgroundColor: brand.surface, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 9 },
+  templateSecondaryText: { color: brand.blue, fontSize: 11, fontWeight: '900' as const },
+  documentMiniButton: { minHeight: 32, borderRadius: 10, borderWidth: 1, borderColor: brand.blue, backgroundColor: brand.surface, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 8 },
+  documentMiniText: { color: brand.blue, fontSize: 10, fontWeight: '900' as const },
+  previewSheet: { width: '100%' as const, maxWidth: 640, maxHeight: '88%' as const, alignSelf: 'center' as const, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: brand.border, backgroundColor: brand.surface, padding: 14, gap: 10 },
+  previewBanner: { borderRadius: 12, backgroundColor: brand.blueSoft, paddingHorizontal: 12, paddingVertical: 9 },
+  webViewFrame: { height: 520, minHeight: 320, borderRadius: 16, borderWidth: 1, borderColor: brand.border, overflow: 'hidden' as const, backgroundColor: '#FFFFFF' },
   timelineRow: { flexDirection: 'row' as const, gap: 9, paddingVertical: 7 },
   timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, backgroundColor: brand.blue },
 };

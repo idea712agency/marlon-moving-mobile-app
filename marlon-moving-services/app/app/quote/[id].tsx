@@ -34,7 +34,36 @@ export default function CustomerQuoteDetailScreen() {
     return <CustomerShell title="Estimate request"><CustomerEmpty title="Request not found" body={request.error instanceof Error ? request.error.message : 'This estimate request could not be loaded.'} /></CustomerShell>;
   }
   if (!payload) {
-    return <CustomerShell title="Estimate request"><CustomerEmpty title="Request details unavailable" body={parsedPayload.error || 'The request exists, but its saved details could not be read.'} /></CustomerShell>;
+    const lead = request.data;
+    const status = customerStatus(lead.status);
+    return (
+      <CustomerShell title="Estimate request" subtitle={`Confirmation ${lead.id.slice(0, 8).toUpperCase()}`} refreshing={request.isRefetching} onRefresh={() => void request.refetch()}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={[styles.statusPill, { backgroundColor: status.bg }]}><Text style={[styles.statusText, { color: status.fg }]}>{status.label}</Text></View>
+          <Text selectable style={{ color: brand.muted, fontSize: 12 }}>{shortDate(lead.created_at.slice(0, 10))}</Text>
+        </View>
+        <CustomerCard>
+          <Text selectable style={{ color: brand.text, fontSize: 18, fontWeight: '900' }}>{status.heading}</Text>
+          <Text selectable style={{ color: brand.muted, fontSize: 14, lineHeight: 21 }}>{status.description}</Text>
+        </CustomerCard>
+        <CustomerCard>
+          <Section title="Saved request summary">
+            <Detail label="Move date" value={lead.move_date ? shortDate(lead.move_date) : 'Pending'} />
+            <Detail label="Pickup" value={lead.origin_address || 'Pending'} />
+            <Detail label="Delivery" value={lead.destination_address || 'Pending'} />
+          </Section>
+        </CustomerCard>
+        <CustomerCard>
+          <Text selectable style={{ color: brand.text, fontSize: 16, fontWeight: '900' }}>Details need an update</Text>
+          <Text selectable style={{ color: brand.muted, fontSize: 14, lineHeight: 21 }}>
+            This request is on file, but some saved details are incomplete. Submit a fresh estimate request if you need to update the move information.
+          </Text>
+        </CustomerCard>
+        <Link href="/app/estimate" asChild>
+          <Pressable style={styles.primaryButton}><Text style={styles.primaryText}>Submit updated details</Text></Pressable>
+        </Link>
+      </CustomerShell>
+    );
   }
 
   const lead = request.data;

@@ -70,21 +70,21 @@ export function customerEstimateFromLead(lead: CustomerLead): CustomerEstimatePa
   const normalized = {
     ...defaults,
     moveType: normalizeMoveType(source.moveType ?? source.move_type ?? lead.move_type),
-    pickup: stringValue(source.pickup ?? source.origin ?? source.origin_address ?? lead.origin_address),
-    delivery: stringValue(source.delivery ?? source.destination ?? source.destination_address ?? lead.destination_address),
+    pickup: stringValue(source.pickup ?? source.pickupAddress ?? source.pickup_address ?? source.origin ?? source.origin_address ?? lead.origin_address),
+    delivery: stringValue(source.delivery ?? source.deliveryAddress ?? source.delivery_address ?? source.destination ?? source.destination_address ?? lead.destination_address),
     propertyTags: stringArray(source.propertyTags ?? source.property_tags ?? source.rooms ?? source.homeDetails),
     inventory,
     services: stringArray(source.services),
-    moveDate: stringValue(source.moveDate ?? source.move_date ?? lead.move_date) || defaults.moveDate,
+    moveDate: stringValue(source.moveDate ?? source.move_date ?? source.preferredDate ?? source.preferred_date ?? lead.move_date) || defaults.moveDate,
     arrivalWindow: ARRIVAL_WINDOWS.includes(arrivalWindow as (typeof ARRIVAL_WINDOWS)[number])
       ? arrivalWindow
       : defaults.arrivalWindow,
     notes: stringValue(source.notes),
     photoPaths: stringArray(source.photoPaths ?? source.photo_paths ?? source.photos),
     contact: {
-      name: stringValue(contact.name ?? source.name),
-      email: stringValue(contact.email ?? source.email),
-      phone: stringValue(contact.phone ?? source.phone),
+      name: stringValue(contact.name ?? contact.fullName ?? contact.full_name ?? source.name ?? source.fullName ?? source.full_name ?? source.customerName ?? source.customer_name),
+      email: stringValue(contact.email ?? source.email ?? source.customerEmail ?? source.customer_email),
+      phone: stringValue(contact.phone ?? contact.phoneNumber ?? contact.phone_number ?? source.phone ?? source.phoneNumber ?? source.phone_number ?? source.customerPhone ?? source.customer_phone),
       preferredMethod: ['phone', 'email', 'text'].includes(preferredMethod)
         ? preferredMethod
         : defaults.contact.preferredMethod,

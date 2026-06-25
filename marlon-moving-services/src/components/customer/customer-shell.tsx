@@ -1,11 +1,13 @@
 import { Link, Redirect, router, usePathname, type Href } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { Bell, Box, FileText, Home, MessageSquare, UserRound } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { brand } from '@/constants/operator-brand';
 import { useBrandAsset } from '@/hooks/useBrandAsset';
+import { invokeSupabaseFunction } from '@/lib/supabase-functions';
 import { useAuth } from '@/providers/auth-provider';
 
 const fallbackLogo = require('../../../assets/images/marlon-logo.png');
@@ -18,6 +20,12 @@ const tabs = [
   { label: 'Account', href: '/app/account' as const, Icon: UserRound },
 ];
 
+type NotificationBadgeResponse = {
+  notifications: { id: string; type?: string | null; read?: boolean | null }[];
+  unread_count: number;
+  next_cursor: string | null;
+};
+
 export function CustomerShell({
   children,
   title,
@@ -25,6 +33,7 @@ export function CustomerShell({
   unread = 0,
   refreshing = false,
   onRefresh,
+  onEndReached,
 }: {
   children: ReactNode;
   title: string;
@@ -32,11 +41,27 @@ export function CustomerShell({
   unread?: number;
   refreshing?: boolean;
   onRefresh?: () => void;
+  onEndReached?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { session, loading, isAdmin } = useAuth();
   const logo = useBrandAsset('logo_primary');
   const logoSource = logo.url.startsWith('http') ? { uri: logo.url } : fallbackLogo;
+  const documentNotifications = useQuery({
+    queryKey: ['customer-document-notification-count'],
+    enabled: Boolean(session && !isAdmin),
+    queryFn: () =>
+      invokeSupabaseFunction<NotificationBadgeResponse>('mobile-get-notifications', {
+        body: { limit: 50, unread_only: true },
+      }),
+  });
+  const documentUnread = (documentNotifications.data?.notifications ?? []).filter((item) => !item.read && isDocumentNotificationType(item.type)).length;
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!onEndReached) return;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const remaining = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    if (remaining < 180) onEndReached();
+  };
 
   if (loading) return null;
   if (!session) return <Redirect href="/app/login" />;
@@ -65,6 +90,8 @@ export function CustomerShell({
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        onScroll={onEndReached ? handleScroll : undefined}
+        scrollEventThrottle={200}
         refreshControl={onRefresh ? <RefreshControl tintColor={brand.blue} refreshing={refreshing} onRefresh={onRefresh} /> : undefined}
         contentContainerStyle={{ width: '100%', maxWidth: 448, alignSelf: 'center', padding: 18, paddingBottom: insets.bottom + 104, gap: 16 }}>
         <View style={{ gap: 5 }}>
@@ -74,7 +101,7 @@ export function CustomerShell({
         {children}
       </ScrollView>
 
-      <CustomerFooter bottom={insets.bottom} />
+      <CustomerFooter bottom={insets.bottom} documentUnread={documentUnread} />
     </View>
   );
 }
@@ -92,7 +119,7 @@ export function CustomerEmpty({ title, body }: { title: string; body: string }) 
   );
 }
 
-export function CustomerFooter({ bottom }: { bottom: number }) {
+export function CustomerFooter({ bottom, documentUnread = 0 }: { bottom: number; documentUnread?: number }) {
   const pathname = usePathname();
   return (
     <View style={{ position: 'absolute', left: 16, right: 16, bottom: Math.max(bottom, 8), maxWidth: 448, alignSelf: 'center', height: 62, borderRadius: 31, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: brand.border, flexDirection: 'row', boxShadow: '0 8px 24px rgba(7,21,47,0.15)' }}>
@@ -102,6 +129,9 @@ export function CustomerFooter({ bottom }: { bottom: number }) {
           <Link key={href} href={href as Href} asChild>
             <Pressable accessibilityLabel={label} accessibilityRole="link" accessibilityState={active ? { selected: true } : {}} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}>
               <Icon color={active ? brand.blue : brand.muted} size={17} strokeWidth={active ? 2.6 : 2.2} />
+              {href === '/app/documents' && documentUnread > 0 ? (
+                <View style={styles.documentTabBadge}><Text style={{ color: '#FFFFFF', fontSize: 7, fontWeight: '900' }}>{Math.min(documentUnread, 9)}</Text></View>
+              ) : null}
               <Text numberOfLines={1} style={{ color: active ? brand.blue : brand.muted, fontSize: 8, fontWeight: '900' }}>{label}</Text>
             </Pressable>
           </Link>
@@ -111,7 +141,13 @@ export function CustomerFooter({ bottom }: { bottom: number }) {
   );
 }
 
+function isDocumentNotificationType(type?: string | null) {
+  const normalized = String(type ?? '').toLowerCase();
+  return normalized === 'document_to_sign' || normalized.includes('document');
+}
+
 const styles = {
   card: { backgroundColor: brand.surface, borderRadius: 20, borderCurve: 'continuous' as const, borderWidth: 1, borderColor: brand.border, padding: 16, gap: 12, boxShadow: '0 1px 2px rgba(15,23,42,0.04)' },
   badge: { position: 'absolute' as const, right: 6, top: 5, minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: brand.red, alignItems: 'center' as const, justifyContent: 'center' as const },
+  documentTabBadge: { position: 'absolute' as const, top: 8, right: 20, minWidth: 14, height: 14, paddingHorizontal: 3, borderRadius: 7, backgroundColor: brand.red, alignItems: 'center' as const, justifyContent: 'center' as const },
 };

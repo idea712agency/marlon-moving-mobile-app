@@ -93,6 +93,10 @@ export type DocumentDetail = {
   signed: boolean;
   signer_name?: string | null;
   signed_at?: string | null;
+  signed_url?: string | null;
+  html_preview_url?: string | null;
+  is_pdf?: boolean | null;
+  is_html_snapshot?: boolean | null;
 };
 
 export const money = (value?: number | null) =>

@@ -53,6 +53,7 @@ export default function PaymentScreen() {
   const remaining = Math.max(0, total - approvedTotal);
   const pendingReview = submittedTotal > 0 || invoice?.status === 'pending_review';
   const selected = methods.find((method) => method.method === selectedMethod) ?? null;
+  const paymentLoadError = detail.error ? paymentError(detail.error) : null;
 
   const defaultAmount = useMemo(() => remaining ? String(remaining.toFixed(2)) : '', [remaining]);
 
@@ -127,7 +128,7 @@ export default function PaymentScreen() {
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 18, gap: 14, paddingBottom: 34, backgroundColor: brand.bg }}>
       {detail.isLoading ? <ActivityIndicator color={brand.blue} /> : null}
-      {detail.error ? <StateCard title="Payment unavailable" body={detail.error instanceof Error ? detail.error.message : 'Unable to load payment details.'} danger /> : null}
+      {paymentLoadError ? <StateCard title={paymentLoadError.title} body={paymentLoadError.body} danger={paymentLoadError.danger} /> : null}
       {localError ? <StateCard title="Check payment details" body={localError} danger /> : null}
       {success ? <StateCard title="Payment submitted" body={success} /> : null}
       {!detail.isLoading && !detail.error && !invoice ? <StateCard title="No open invoice" body="There is no invoice ready for payment right now." /> : null}
@@ -231,6 +232,22 @@ function SubmissionRow({ submission }: { submission: ManualPaymentSubmission }) 
 
 function StateCard({ title, body, danger }: { title: string; body: string; danger?: boolean }) {
   return <View style={[styles.card, danger ? { borderColor: brand.red, backgroundColor: brand.redSoft } : null]}><Text selectable style={{ color: danger ? brand.red : brand.text, fontSize: 17, fontWeight: '900' }}>{title}</Text><Text selectable style={styles.body}>{body}</Text></View>;
+}
+
+function paymentError(error: unknown) {
+  const message = errorMessage(error);
+  if (message.toLowerCase().includes('invoice not found')) {
+    return {
+      title: 'No open invoice',
+      body: 'There is no invoice ready for payment right now.',
+      danger: false,
+    };
+  }
+  return {
+    title: 'Payment unavailable',
+    body: message || 'Unable to load payment details.',
+    danger: true,
+  };
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

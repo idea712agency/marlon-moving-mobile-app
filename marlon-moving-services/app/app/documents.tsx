@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { ClipboardList, FileText } from 'lucide-react-native';
+import { ChevronRight, ClipboardList, FileText } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
@@ -15,10 +15,10 @@ export default function CustomerDocumentsScreen() {
     queryKey: ['customer-quote-requests'],
     queryFn: listCustomerQuoteRequests,
   });
-  const documents = dashboard.data?.documents ?? [];
+  const job = dashboard.data?.job ?? null;
   const isLoading = dashboard.isLoading || requests.isLoading;
   const error = dashboard.error || requests.error;
-  const totalItems = documents.length + (requests.data?.length ?? 0);
+  const totalItems = (job ? 1 : 0) + (requests.data?.length ?? 0);
 
   return (
     <CustomerShell
@@ -58,24 +58,25 @@ export default function CustomerDocumentsScreen() {
         </Link>
       ))}
 
-      {documents.length ? <Text selectable style={styles.sectionTitle}>Move documents</Text> : null}
-      {documents.map((document) => (
-        <Link key={document.id} href={`/document/${document.id}`} asChild>
-          <Pressable accessibilityLabel={`Open ${document.name}`} accessibilityRole="link">
+      {job ? <Text selectable style={styles.sectionTitle}>Move documents</Text> : null}
+      {job ? (
+        <Link href={`/app/moves/${job.id}`} asChild>
+          <Pressable accessibilityLabel="Open move documents" accessibilityRole="link">
             <CustomerCard>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: brand.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
                   <FileText color={brand.blue} size={24} />
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
-                  <Text selectable numberOfLines={1} style={{ color: brand.text, fontSize: 16, fontWeight: '900' }}>{document.name}</Text>
-                  <Text style={{ color: brand.muted, fontSize: 12 }}>{titleCase(document.document_type)} · {document.is_signed ? 'Signed' : 'Not signed'}</Text>
+                  <Text selectable numberOfLines={1} style={{ color: brand.text, fontSize: 16, fontWeight: '900' }}>Move documents</Text>
+                  <Text style={{ color: brand.muted, fontSize: 12 }}>Documents sent for job {job.job_number}</Text>
                 </View>
+                <ChevronRight color={brand.muted} size={18} />
               </View>
             </CustomerCard>
           </Pressable>
         </Link>
-      ))}
+      ) : null}
     </CustomerShell>
   );
 }

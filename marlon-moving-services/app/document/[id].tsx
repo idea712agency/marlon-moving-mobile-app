@@ -5,11 +5,11 @@ import { Check, FileText, LockKeyhole } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { DocumentViewer, HtmlSnapshotModal } from '@/components/documents/document-viewer';
 import { brand } from '@/constants/operator-brand';
 import type { Document, DocumentDetail } from '@/lib/data';
 import { errorMessage } from '@/lib/data';
 import { invokeSupabaseFunction } from '@/lib/supabase-functions';
-import { supabase } from '@/lib/supabase';
 
 type SignResponse = {
   document?: Document;
@@ -25,6 +25,7 @@ export default function DocumentDetailScreen() {
   const [signerName, setSignerName] = useState('');
   const [localError, setLocalError] = useState('');
   const [success, setSuccess] = useState('');
+  const [htmlPreviewOpen, setHtmlPreviewOpen] = useState(false);
 
   const detail = useQuery({
     queryKey: ['document', documentId],
@@ -64,9 +65,8 @@ export default function DocumentDetailScreen() {
   });
 
   const open = async () => {
-    if (!document) return;
-    const url = document.file_path.startsWith('http') ? document.file_path : supabase.storage.from('media').getPublicUrl(document.file_path).data.publicUrl;
-    await WebBrowser.openBrowserAsync(url);
+    if (!detail.data?.signed_url) return;
+    await WebBrowser.openBrowserAsync(detail.data.signed_url);
   };
 
   return (
@@ -90,10 +90,19 @@ export default function DocumentDetailScreen() {
             ) : null}
           </View>
 
-          <Pressable onPress={() => void open()} style={styles.secondaryButton}>
-            <FileText color={brand.blue} size={17} />
-            <Text style={styles.secondaryText}>Open document</Text>
-          </Pressable>
+          <DocumentViewer
+            url={detail.data?.signed_url ?? null}
+            isPdf={detail.data?.is_pdf}
+            isHtmlSnapshot={detail.data?.is_html_snapshot}
+            mimeType={document.mime_type}
+            onOpen={open}
+          />
+          {detail.data?.html_preview_url ? (
+            <Pressable onPress={() => setHtmlPreviewOpen(true)} style={styles.secondaryButton}>
+              <FileText color={brand.blue} size={17} />
+              <Text style={styles.secondaryText}>View HTML snapshot</Text>
+            </Pressable>
+          ) : null}
 
           {signed ? (
             <View style={styles.card}>
@@ -132,6 +141,7 @@ export default function DocumentDetailScreen() {
           )}
         </>
       ) : null}
+      <HtmlSnapshotModal title="HTML snapshot" url={detail.data?.html_preview_url} visible={htmlPreviewOpen} onClose={() => setHtmlPreviewOpen(false)} />
     </ScrollView>
   );
 }
