@@ -45,7 +45,7 @@ export default function RootLayout() {
             <Stack.Screen name="jobs/new" options={{ title: 'New Move' }} />
             <Stack.Screen name="moves/[id]" options={{ title: 'Move details', headerTitle: 'Move details' }} />
             <Stack.Screen name="customers/new" options={{ title: 'Add Customer' }} />
-            <Stack.Screen name="dispatch/index" options={{ title: 'Dispatch Crew' }} />
+            <Stack.Screen name="dispatch/crew" options={{ title: 'Crew Roster' }} />
             <Stack.Screen name="invoices/index" options={{ title: 'Invoices' }} />
             <Stack.Screen name="leads/index" options={{ headerShown: false }} />
             <Stack.Screen name="leads/[id]" options={{ headerShown: false }} />

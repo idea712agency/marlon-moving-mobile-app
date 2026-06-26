@@ -296,8 +296,8 @@ export default function ScheduleScreen() {
           <Text selectable style={{ color: brand.text, fontSize: 15, fontWeight: '900' }}>{scheduleText.quickActions.title}</Text>
           <View style={{ flexDirection: 'row', gap: 6 }}>
             <QuickAction label={scheduleText.quickActions.calendar} Icon={CalendarDays} />
-            <QuickAction label={scheduleText.quickActions.dispatch} Icon={Truck} />
-            <QuickAction label={scheduleText.quickActions.crew} Icon={Users} />
+            <QuickAction label={scheduleText.quickActions.dispatch} Icon={Truck} onPress={() => router.push('/dispatch')} />
+            <QuickAction label={scheduleText.quickActions.crew} Icon={Users} onPress={() => router.push('/dispatch/crew')} />
             <QuickAction label={scheduleText.quickActions.export} Icon={Download} />
           </View>
         </View>
@@ -329,9 +329,9 @@ function FilterPill({ label, Icon }: { label: string; Icon: typeof Filter }) {
   );
 }
 
-function QuickAction({ label, Icon }: { label: string; Icon: typeof CalendarDays }) {
+function QuickAction({ label, Icon, onPress }: { label: string; Icon: typeof CalendarDays; onPress?: () => void }) {
   return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+    <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
       <View style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: brand.blueSoft }}>
         <Icon color={brand.blue} size={18} strokeWidth={2.3} />
       </View>

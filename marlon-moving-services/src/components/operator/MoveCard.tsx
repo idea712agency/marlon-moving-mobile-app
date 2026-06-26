@@ -27,6 +27,7 @@ export type MoveListItem = {
   estimated_total: number | null;
   actual_total: number | null;
   payment_status: string | null;
+  dispatch_status?: string | null;
   contacts: { name: string; phone: string | null } | null;
 };
 
@@ -86,7 +87,7 @@ function balanceLabel(move: MoveListItem) {
   return total != null ? { label: `${money(total)} balance`, color: brand.text } : null;
 }
 
-export function MoveCard({ move }: { move: MoveListItem }) {
+export function MoveCard({ move, onAssignCrew }: { move: MoveListItem; onAssignCrew?: (move: MoveListItem) => void }) {
   const crew = getCrewNames(move.crew_members);
   const balance = balanceLabel(move);
   const customerName = move.contacts?.name || move.job_number;
@@ -205,7 +206,7 @@ export function MoveCard({ move }: { move: MoveListItem }) {
           <ActionButton
             label="Assign Crew"
             icon={<UserRoundPlus color={brand.blue} size={13} strokeWidth={2.5} />}
-            onPress={() => router.push(`/moves/${move.id}`)}
+            onPress={() => onAssignCrew ? onAssignCrew(move) : router.push(`/dispatch?job_id=${move.id}`)}
           />
           <ActionButton
             label="Message"

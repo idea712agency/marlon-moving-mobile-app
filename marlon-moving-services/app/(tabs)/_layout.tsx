@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Redirect, Tabs } from 'expo-router';
-import { Calendar, LayoutGrid, MoreHorizontal, Truck, Users } from 'lucide-react-native';
+import { Redirect, Tabs, router, usePathname, type Href } from 'expo-router';
+import { FileText, LayoutGrid, MessageSquare, MoreHorizontal, Truck } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
 import { brand } from '@/constants/operator-brand';
@@ -9,18 +9,26 @@ import { useAuth } from '@/providers/auth-provider';
 const icons = {
   home: LayoutGrid,
   moves: Truck,
-  customers: Users,
-  schedule: Calendar,
+  quotes: FileText,
+  messages: MessageSquare,
   more: MoreHorizontal,
 } as const;
 
 const labels = {
   home: 'Dashboard',
   moves: 'Moves',
-  customers: 'Customers',
-  schedule: 'Schedule',
+  quotes: 'Quotes',
+  messages: 'Messages',
   more: 'More',
 } as const;
+
+const navItems: Array<{ key: keyof typeof icons; href: Href }> = [
+  { key: 'home', href: '/home' },
+  { key: 'moves', href: '/moves' },
+  { key: 'quotes', href: '/quotes' },
+  { key: 'messages', href: '/messages' },
+  { key: 'more', href: '/more' },
+];
 
 export default function TabsLayout() {
   const { session, isAdmin, loading } = useAuth();
@@ -46,8 +54,8 @@ export default function TabsLayout() {
   );
 }
 
-function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
-  const routes = state.routes.filter((route) => route.name in icons && descriptors[route.key].options.tabBarButton !== null);
+function FloatingTabBar({ state, navigation, insets }: BottomTabBarProps) {
+  const pathname = usePathname();
 
   return (
     <View
@@ -68,32 +76,24 @@ function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBar
         borderCurve: 'continuous',
         boxShadow: '0 9px 24px rgba(7,21,47,0.14)',
       }}>
-      {routes.map((route) => {
-        const routeName = route.name as keyof typeof icons;
-        const Icon = icons[routeName] ?? MoreHorizontal;
-        const focused = state.routes[state.index]?.key === route.key;
+      {navItems.map((item) => {
+        const Icon = icons[item.key] ?? MoreHorizontal;
+        const focused = pathname === item.href || (item.href === '/quotes' && pathname.startsWith('/quotes')) || (item.href === '/messages' && pathname.startsWith('/messages'));
         const color = focused ? brand.blue : brand.muted;
-        const label = labels[routeName] ?? route.name;
+        const label = labels[item.key];
 
         const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!focused && !event.defaultPrevented) {
-            navigation.navigate(route.name, route.params);
-          }
+          if (!focused) router.navigate(item.href);
         };
 
         const onLongPress = () => {
-          navigation.emit({ type: 'tabLongPress', target: route.key });
+          const route = state.routes.find((candidate) => candidate.name === item.key);
+          if (route) navigation.emit({ type: 'tabLongPress', target: route.key });
         };
 
         return (
           <Pressable
-            key={route.key}
+            key={item.key}
             accessibilityLabel={label}
             accessibilityRole="button"
             accessibilityState={focused ? { selected: true } : {}}

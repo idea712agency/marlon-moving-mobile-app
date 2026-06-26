@@ -17,10 +17,9 @@ export function useMoves(filter: MoveFilter) {
   return useQuery({
     queryKey: ['operator-moves', filter, localDate()],
     queryFn: async () => {
-      let query = supabase
-        .from('jobs')
+      let query = (supabase.from('jobs') as any)
         .select(
-          'id, job_number, scheduled_date, scheduled_start_time, status, origin_address, destination_address, job_type, crew_size, crew_members, truck_size, packing_service_included, estimated_total, actual_total, payment_status, contacts(name, phone)',
+          'id, job_number, scheduled_date, scheduled_start_time, status, dispatch_status, origin_address, destination_address, job_type, crew_size, crew_members, truck_size, packing_service_included, estimated_total, actual_total, payment_status, contacts(name, phone)',
         )
         .order('scheduled_date', { ascending: true })
         .order('scheduled_start_time', { ascending: true })

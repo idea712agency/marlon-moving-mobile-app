@@ -22,6 +22,7 @@ import { ActivityIndicator, Alert, Modal, Pressable, Text, TextInput, View } fro
 
 import { DocumentViewer } from '@/components/documents/document-viewer';
 import { HtmlViewer } from '@/components/documents/html-viewer';
+import { DispatchAssignmentSheet } from '@/components/operator/dispatch/DispatchAssignmentSheet';
 import { OperatorCard, OperatorPageHeader, OperatorScreen } from '@/components/operator/app-shell';
 import { StatusPill } from '@/components/operator/StatusPill';
 import { brand } from '@/constants/operator-brand';
@@ -45,6 +46,8 @@ import {
 import type { DocumentDetail, ManualPaymentSubmission } from '@/lib/data';
 import { errorMessage, money, shortDate, shortTime } from '@/lib/data';
 import { estimateFromUnknown, priceRange } from '@/lib/adminEstimate';
+import { dispatchBlockerLabel, dispatchStatusLabel, vehicleLabel } from '@/lib/dispatch';
+import { useJobDispatchDetail } from '@/hooks/use-dispatch';
 import { invokeSupabaseFunction } from '@/lib/supabase-functions';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/types/supabase';
@@ -110,7 +113,7 @@ export default function MoveDetailsScreen() {
       <CustomerCard data={data} />
       <AddressCard job={job} />
       <OperationsCard data={data} actions={actions} />
-      <CrewCard data={data} actions={actions} />
+      <CrewCard data={data} />
       <ChecklistCard checklist={data.checklist} actions={actions} />
       <InventoryCard inventory={data.inventory} />
       <DocumentsCard data={data} />
@@ -203,40 +206,42 @@ function OperationsCard({ data, actions }: { data: OperatorJobDetail; actions: R
   );
 }
 
-function CrewCard({ data, actions }: { data: OperatorJobDetail; actions: ReturnType<typeof useOperatorJobActions> }) {
+function CrewCard({ data }: { data: OperatorJobDetail }) {
   const job = data.job;
-  const initialCrewText = crewNames(job.crew_members).join('\n');
-  const [crewText, setCrewText] = useState(initialCrewText);
-  const [crewSize, setCrewSize] = useState(String(job.crew_size ?? ''));
-  const [truckSize, setTruckSize] = useState(job.truck_size ?? '');
-
-  useEffect(() => {
-    setCrewText(crewNames(job.crew_members).join('\n'));
-    setCrewSize(String(job.crew_size ?? ''));
-    setTruckSize(job.truck_size ?? '');
-  }, [job.id, job.crew_members, job.crew_size, job.truck_size]);
-
-  const members = crewFromText(crewText);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const dispatch = useJobDispatchDetail(job.id);
+  const dispatchDetail = dispatch.data;
+  const members = dispatchDetail?.crew_members ?? dispatchDetail?.assigned_crew ?? [];
+  const fallbackMembers = crewNames(job.crew_members);
   const eta = data.crew_location?.eta_window || (data.crew_location?.eta_minutes ? `${data.crew_location.eta_minutes} min` : 'No ETA yet');
-  const save = () => runAction('Crew assigned', () => actions.assignCrew.mutateAsync({
-    crew_members: members,
-    crew_size: numberOrNull(crewSize) ?? (members.length || null),
-    truck_size: truckSize.trim() || null,
-  }));
+  const blockers = dispatchDetail?.readiness?.blockers ?? [];
+  const dispatchJob = dispatchDetail?.job;
 
   return (
     <OperatorCard>
       <SectionTitle icon={<Users color={brand.blue} size={20} />} title="Crew" />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-        {members.length ? members.map((member) => <Chip key={String(member)} label={String(member)} />) : <Text style={styles.emptyText}>No crew assigned.</Text>}
+        {members.length
+          ? members.map((member) => <Chip key={member.id} label={`${member.name} · ${member.role}`} />)
+          : fallbackMembers.length
+            ? fallbackMembers.map((member) => <Chip key={member} label={member} />)
+            : <Text style={styles.emptyText}>No crew assigned.</Text>}
       </View>
       <Metric label="Crew ETA" value={eta} />
-      <Field label="Crew members" value={crewText} multiline onChangeText={setCrewText} />
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label="Crew size" value={crewSize} keyboardType="number-pad" onChangeText={setCrewSize} />
-        <Field label="Truck" value={truckSize} onChangeText={setTruckSize} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        <Metric label="Dispatch" value={dispatchStatusLabel(dispatchJob?.dispatch_status)} />
+        <Metric label="Truck" value={vehicleLabel(dispatchDetail?.vehicle ?? dispatchDetail?.truck) || dispatchJob?.truck_size || job.truck_size || 'Pending'} />
+        <Metric label="Start" value={dispatchJob?.scheduled_start_time ? shortTime(dispatchJob.scheduled_start_time) : shortTime(job.scheduled_start_time)} />
       </View>
-      <PrimaryAction label={actions.assignCrew.isPending ? 'Saving…' : 'Assign crew'} disabled={actions.assignCrew.isPending} onPress={save} />
+      {dispatch.isLoading ? <ActivityIndicator color={brand.blue} /> : null}
+      {dispatch.error ? <Text selectable style={{ color: brand.red, fontSize: 12, lineHeight: 17 }}>{dispatch.error instanceof Error ? dispatch.error.message : 'Dispatch readiness unavailable.'}</Text> : null}
+      {blockers.length ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+          {blockers.map((blocker) => <View key={blocker} style={{ borderRadius: 999, backgroundColor: brand.orangeSoft, paddingHorizontal: 9, paddingVertical: 6 }}><Text style={{ color: brand.orange, fontSize: 11, fontWeight: '900' }}>{dispatchBlockerLabel(blocker)}</Text></View>)}
+        </View>
+      ) : null}
+      <PrimaryAction label="Assign dispatch" onPress={() => setSheetOpen(true)} />
+      <DispatchAssignmentSheet visible={sheetOpen} jobId={job.id} onClose={() => setSheetOpen(false)} />
     </OperatorCard>
   );
 }
@@ -1044,12 +1049,6 @@ const crewNames = (value: Json | null): string[] => {
     })
     .filter(Boolean);
 };
-
-const crewFromText = (value: string): Json[] =>
-  value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 
 const groupInventory = (items: OperatorInventoryItem[]) => {
   const map = new Map<string, OperatorInventoryItem[]>();

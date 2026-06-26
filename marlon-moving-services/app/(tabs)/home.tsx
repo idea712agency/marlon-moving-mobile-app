@@ -32,6 +32,8 @@ const quickActions = [
   { label: 'Templates', href: '/templates', Icon: Settings2 },
 ] as const;
 
+type MissingDispatchBreakdown = NonNullable<NonNullable<AdminDashboard['attention']>['missing_dispatch_breakdown']>;
+
 export default function DashboardScreen() {
   const { width } = useWindowDimensions();
   const dashboard = useAdminDashboard();
@@ -635,9 +637,9 @@ function attentionItems(data: AdminDashboard) {
       {
         key: 'missing-dispatch',
         title: 'Moves missing dispatch details',
-        detail: 'Upcoming moves need crew, truck, schedule, or route information.',
+        detail: missingDispatchDetail(data.attention.missing_dispatch_breakdown),
         count: data.attention.moves_missing_dispatch ?? 0,
-        href: '/schedule' as Href,
+        href: missingDispatchHref(data.attention.missing_dispatch_breakdown),
         Icon: AlertTriangle,
         color: brand.orange,
         bg: brand.orangeSoft,
@@ -707,6 +709,30 @@ function attentionItems(data: AdminDashboard) {
   }
 
   return items.slice(0, 3);
+}
+
+function missingDispatchHref(breakdown?: MissingDispatchBreakdown | null): Href {
+  const entries = Object.entries(breakdown ?? {})
+    .filter(([, value]) => typeof value === 'number' && value > 0)
+    .sort(([, a], [, b]) => Number(b) - Number(a));
+  const key = entries[0]?.[0];
+  return key ? `/dispatch?blocker=${key}` as Href : '/dispatch' as Href;
+}
+
+function missingDispatchDetail(breakdown?: MissingDispatchBreakdown | null) {
+  const labels: Record<string, string> = {
+    missing_crew: 'crew',
+    missing_truck: 'truck',
+    missing_start_time: 'start time',
+    missing_address: 'address',
+    missing_origin: 'origin',
+    missing_destination: 'destination',
+  };
+  const entries = Object.entries(breakdown ?? {})
+    .filter(([, value]) => typeof value === 'number' && value > 0)
+    .sort(([, a], [, b]) => Number(b) - Number(a));
+  const first = entries[0]?.[0];
+  return first ? `Upcoming moves need ${labels[first] ?? 'dispatch'} details.` : 'Upcoming moves need crew, truck, schedule, or route information.';
 }
 
 function localDateKey(date: Date) {

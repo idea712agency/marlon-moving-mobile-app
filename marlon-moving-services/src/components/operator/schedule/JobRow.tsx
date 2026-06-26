@@ -2,6 +2,7 @@ import { MoreHorizontal } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 
 import { brand } from '@/constants/operator-brand';
+import { dispatchBlockerLabel, dispatchStatusLabel } from '@/lib/dispatch';
 
 export type ScheduleJob = {
   id: string;
@@ -12,6 +13,8 @@ export type ScheduleJob = {
   origin_address: string;
   destination_address: string;
   crew_size: number | null;
+  truck_size?: string | null;
+  dispatch_status?: string | null;
   contacts: { name: string } | null;
 };
 
@@ -60,6 +63,7 @@ export function JobRow({
 }) {
   const status = scheduleStatus(job.status, statusLabels);
   const crewSize = job.crew_size ?? 0;
+  const blockers = dispatchBlockers(job);
 
   return (
     <Pressable
@@ -106,6 +110,14 @@ export function JobRow({
             <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: status.backgroundColor }}>
               <Text style={{ color: status.color, fontSize: 9, fontWeight: '900' }}>{status.label}</Text>
             </View>
+            <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: dispatchTone(job.dispatch_status).bg }}>
+              <Text style={{ color: dispatchTone(job.dispatch_status).fg, fontSize: 9, fontWeight: '900' }}>{dispatchStatusLabel(job.dispatch_status)}</Text>
+            </View>
+            {blockers.length ? (
+              <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: brand.orangeSoft }}>
+                <Text style={{ color: brand.orange, fontSize: 9, fontWeight: '900' }}>{blockers.length} blocker{blockers.length === 1 ? '' : 's'}</Text>
+              </View>
+            ) : null}
             {!compact ? <MoreHorizontal color={brand.muted} size={17} strokeWidth={2.3} /> : null}
           </View>
         </View>
@@ -133,9 +145,26 @@ export function JobRow({
               ))}
             </View>
             <Text selectable style={{ color: brand.muted, fontSize: 10, fontWeight: '800' }}>{moversLabel}</Text>
+            {blockers[0] ? <Text selectable numberOfLines={1} style={{ flex: 1, color: brand.orange, fontSize: 10, fontWeight: '800' }}>{dispatchBlockerLabel(blockers[0])}</Text> : null}
           </View>
         ) : null}
       </View>
     </Pressable>
   );
+}
+
+function dispatchTone(status?: string | null) {
+  if (status === 'assigned' || status === 'en_route' || status === 'arrived') return { bg: brand.greenSoft, fg: brand.green };
+  if (status === 'completed') return { bg: brand.blueSoft, fg: brand.blue };
+  return { bg: brand.orangeSoft, fg: brand.orange };
+}
+
+function dispatchBlockers(job: ScheduleJob) {
+  const blockers: string[] = [];
+  if (!job.crew_size || job.crew_size < 1) blockers.push('missing_crew');
+  if (!job.truck_size) blockers.push('missing_truck');
+  if (!job.scheduled_start_time) blockers.push('missing_start_time');
+  if (!job.origin_address) blockers.push('missing_origin');
+  if (!job.destination_address) blockers.push('missing_destination');
+  return blockers;
 }

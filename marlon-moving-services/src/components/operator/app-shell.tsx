@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   LogOut,
   Menu,
+  MessageSquare,
   MoreHorizontal,
   Plus,
   UserRoundSearch,
@@ -117,10 +118,13 @@ function OperatorMenu({
   const pages = [
     { label: 'Dashboard', href: '/home' as const, Icon: LayoutGrid },
     { label: 'Moves', href: '/moves' as const, Icon: Truck },
-    { label: 'Customers', href: '/customers' as const, Icon: Users },
-    { label: 'Schedule', href: '/schedule' as const, Icon: CalendarDays },
-    { label: 'More', href: '/more' as const, Icon: MoreHorizontal },
     { label: 'Quotes', href: '/quotes' as const, Icon: FileText },
+    { label: 'Messages', href: '/messages' as const, Icon: MessageSquare },
+    { label: 'More', href: '/more' as const, Icon: MoreHorizontal },
+    { label: 'Schedule', href: '/schedule' as const, Icon: CalendarDays },
+    { label: 'Dispatch', href: '/dispatch' as const, Icon: Truck },
+    { label: 'Crew', href: '/dispatch/crew' as const, Icon: Users },
+    { label: 'Customers', href: '/customers' as const, Icon: Users },
     { label: 'Leads', href: '/leads' as const, Icon: UserRoundSearch },
     { label: 'Documents', href: '/documents' as const, Icon: FileStack },
     { label: 'Templates', href: '/templates' as const, Icon: FileCode2 },
@@ -292,8 +296,8 @@ function OperatorBottomNav() {
   const pages = [
     { label: 'Dashboard', href: '/home' as const, Icon: LayoutGrid },
     { label: 'Moves', href: '/moves' as const, Icon: Truck },
-    { label: 'Customers', href: '/customers' as const, Icon: Users },
-    { label: 'Schedule', href: '/schedule' as const, Icon: CalendarDays },
+    { label: 'Quotes', href: '/quotes' as const, Icon: FileText },
+    { label: 'Messages', href: '/messages' as const, Icon: MessageSquare },
     { label: 'More', href: '/more' as const, Icon: MoreHorizontal },
   ];
 
@@ -313,7 +317,7 @@ function OperatorBottomNav() {
         boxShadow: '0 9px 24px rgba(7,21,47,0.14)',
       }}>
       {pages.map(({ label, href, Icon }) => {
-        const active = pathname === href;
+        const active = pathname === href || (href === '/quotes' && pathname.startsWith('/quotes')) || (href === '/messages' && pathname.startsWith('/messages'));
         const color = active ? brand.blue : brand.muted;
         return (
           <Pressable

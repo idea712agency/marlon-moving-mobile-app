@@ -55,6 +55,17 @@ export const adminDashboardSchema = z.object({
       new_quotes: optionalNumber,
       unread_messages: optionalNumber,
       moves_missing_dispatch: optionalNumber,
+      missing_dispatch_breakdown: z
+        .object({
+          missing_crew: optionalNumber,
+          missing_truck: optionalNumber,
+          missing_start_time: optionalNumber,
+          missing_address: optionalNumber,
+          missing_origin: optionalNumber,
+          missing_destination: optionalNumber,
+        })
+        .nullable()
+        .optional(),
     })
     .nullable()
     .optional(),

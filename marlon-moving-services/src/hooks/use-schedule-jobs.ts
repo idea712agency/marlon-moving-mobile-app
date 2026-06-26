@@ -7,10 +7,9 @@ export function useScheduleJobs(rangeStart: string, rangeEnd: string) {
   return useQuery({
     queryKey: ['operator-schedule', rangeStart, rangeEnd],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('jobs')
+      const { data, error } = await (supabase.from('jobs') as any)
         .select(
-          'id, job_number, scheduled_date, scheduled_start_time, status, origin_address, destination_address, crew_size, contacts(name)',
+          'id, job_number, scheduled_date, scheduled_start_time, status, dispatch_status, origin_address, destination_address, crew_size, truck_size, contacts(name)',
         )
         .gte('scheduled_date', rangeStart)
         .lte('scheduled_date', rangeEnd)

@@ -12,9 +12,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppTopBar } from '@/components/operator/app-shell';
+import { DispatchAssignmentSheet } from '@/components/operator/dispatch/DispatchAssignmentSheet';
 import { MoveCard } from '@/components/operator/MoveCard';
 import { brand } from '@/constants/operator-brand';
 import { type MoveFilter, useMoves } from '@/hooks/use-moves';
+import type { MoveListItem } from '@/components/operator/MoveCard';
 
 const filters: { key: MoveFilter; label: string }[] = [
   { key: 'upcoming', label: 'Upcoming' },
@@ -28,6 +30,7 @@ export default function MovesScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<MoveFilter>('upcoming');
   const [search, setSearch] = useState('');
+  const [assigningMove, setAssigningMove] = useState<MoveListItem | null>(null);
   const movesQuery = useMoves(filter);
 
   const moves = useMemo(() => {
@@ -177,8 +180,9 @@ export default function MovesScreen() {
             </View>
           ) : null
         }
-        renderItem={({ item }) => <MoveCard move={item} />}
+        renderItem={({ item }) => <MoveCard move={item} onAssignCrew={setAssigningMove} />}
       />
+      <DispatchAssignmentSheet visible={Boolean(assigningMove)} jobId={assigningMove?.id} onClose={() => setAssigningMove(null)} />
     </View>
   );
 }

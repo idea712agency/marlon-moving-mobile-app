@@ -1,24 +1,17 @@
 import { Link, Redirect, router, usePathname, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Box, FileText, Home, MessageSquare, UserRound } from 'lucide-react-native';
+import { Bell, Box, FileText, Home, MessageSquare, Truck } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { brand } from '@/constants/operator-brand';
 import { useBrandAsset } from '@/hooks/useBrandAsset';
+import { useCustomerDashboard } from '@/hooks/use-customer-dashboard';
 import { invokeSupabaseFunction } from '@/lib/supabase-functions';
 import { useAuth } from '@/providers/auth-provider';
 
 const fallbackLogo = require('../../../assets/images/marlon-logo.png');
-
-const tabs = [
-  { label: 'Home', href: '/app/home' as const, Icon: Home },
-  { label: 'Quote', href: '/app/quote' as const, Icon: Box },
-  { label: 'Messages', href: '/app/messages' as const, Icon: MessageSquare },
-  { label: 'Documents', href: '/app/documents' as const, Icon: FileText },
-  { label: 'Account', href: '/app/account' as const, Icon: UserRound },
-];
 
 type NotificationBadgeResponse = {
   notifications: { id: string; type?: string | null; read?: boolean | null }[];
@@ -47,6 +40,7 @@ export function CustomerShell({
   const { session, loading, isAdmin } = useAuth();
   const logo = useBrandAsset('logo_primary');
   const logoSource = logo.url.startsWith('http') ? { uri: logo.url } : fallbackLogo;
+  const dashboard = useCustomerDashboard();
   const documentNotifications = useQuery({
     queryKey: ['customer-document-notification-count'],
     enabled: Boolean(session && !isAdmin),
@@ -56,6 +50,7 @@ export function CustomerShell({
       }),
   });
   const documentUnread = (documentNotifications.data?.notifications ?? []).filter((item) => !item.read && isDocumentNotificationType(item.type)).length;
+  const moveHref = dashboard.data?.job?.id ? `/app/moves/${dashboard.data.job.id}` as Href : '/app/home' as Href;
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!onEndReached) return;
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -101,7 +96,7 @@ export function CustomerShell({
         {children}
       </ScrollView>
 
-      <CustomerFooter bottom={insets.bottom} documentUnread={documentUnread} />
+      <CustomerFooter bottom={insets.bottom} documentUnread={documentUnread} moveHref={moveHref} />
     </View>
   );
 }
@@ -119,14 +114,21 @@ export function CustomerEmpty({ title, body }: { title: string; body: string }) 
   );
 }
 
-export function CustomerFooter({ bottom, documentUnread = 0 }: { bottom: number; documentUnread?: number }) {
+export function CustomerFooter({ bottom, documentUnread = 0, moveHref = '/app/home' }: { bottom: number; documentUnread?: number; moveHref?: Href }) {
   const pathname = usePathname();
+  const tabs = [
+    { label: 'Home', href: '/app/home' as const, Icon: Home },
+    { label: 'Quote', href: '/app/quote' as const, Icon: Box },
+    { label: 'Move', href: moveHref, Icon: Truck },
+    { label: 'Documents', href: '/app/documents' as const, Icon: FileText },
+    { label: 'Messages', href: '/app/messages' as const, Icon: MessageSquare },
+  ];
   return (
     <View style={{ position: 'absolute', left: 16, right: 16, bottom: Math.max(bottom, 8), maxWidth: 448, alignSelf: 'center', height: 62, borderRadius: 31, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: brand.border, flexDirection: 'row', boxShadow: '0 8px 24px rgba(7,21,47,0.15)' }}>
       {tabs.map(({ label, href, Icon }) => {
-        const active = pathname === href || (href === '/app/quote' && (pathname === '/app/estimate' || pathname === '/quote/new'));
+        const active = pathname === href || (label === 'Quote' && (pathname === '/app/estimate' || pathname === '/quote/new')) || (label === 'Move' && pathname.startsWith('/app/moves'));
         return (
-          <Link key={href} href={href as Href} asChild>
+          <Link key={label} href={href as Href} asChild>
             <Pressable accessibilityLabel={label} accessibilityRole="link" accessibilityState={active ? { selected: true } : {}} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}>
               <Icon color={active ? brand.blue : brand.muted} size={17} strokeWidth={active ? 2.6 : 2.2} />
               {href === '/app/documents' && documentUnread > 0 ? (
